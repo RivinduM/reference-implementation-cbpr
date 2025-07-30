@@ -93,22 +93,23 @@ jobs:
           
       - name: Create Release Package
         run: |
-          cd ${{ env.PROJECT_PATH }}
+          # Ensure we're in the repository root
+          cd $GITHUB_WORKSPACE
           
-          # Create release directory
-          mkdir -p ../../../release/swift-mt-mx-translator-${{ steps.get_version.outputs.version }}
-          RELEASE_DIR="../../../release/swift-mt-mx-translator-${{ steps.get_version.outputs.version }}"
+          # Create release directory in repository root
+          mkdir -p release/swift-mt-mx-translator-${{ steps.get_version.outputs.version }}
+          RELEASE_DIR="release/swift-mt-mx-translator-${{ steps.get_version.outputs.version }}"
           
-          # Copy JAR file
-          cp target/bin/*.jar ${RELEASE_DIR}/
+          # Copy JAR file from build location
+          cp ${{ env.PROJECT_PATH }}/target/bin/*.jar ${RELEASE_DIR}/
           
           # Copy configuration files
-          cp Config.toml ${RELEASE_DIR}/Config.sample.toml
-          cp Ballerina.toml ${RELEASE_DIR}/
+          cp ${{ env.PROJECT_PATH }}/Config.toml ${RELEASE_DIR}/Config.sample.toml
+          cp ${{ env.PROJECT_PATH }}/Ballerina.toml ${RELEASE_DIR}/
           
           # Copy source files for reference
           mkdir -p ${RELEASE_DIR}/src
-          cp *.bal ${RELEASE_DIR}/src/
+          cp ${{ env.PROJECT_PATH }}/*.bal ${RELEASE_DIR}/src/
           
           # Create installation script
           cat > ${RELEASE_DIR}/install.sh << 'EOF'
@@ -222,13 +223,16 @@ jobs:
           - Enterprise: Contact WSO2
           EOF
           
-          # Create archive
-          cd ../../../release
+          # Create archives in release directory
+          cd release
           tar -czf swift-mt-mx-translator-${{ steps.get_version.outputs.version }}.tar.gz swift-mt-mx-translator-${{ steps.get_version.outputs.version }}/
           zip -r swift-mt-mx-translator-${{ steps.get_version.outputs.version }}.zip swift-mt-mx-translator-${{ steps.get_version.outputs.version }}/
           
           echo "Release package created:"
           ls -la swift-mt-mx-translator-${{ steps.get_version.outputs.version }}.*
+          echo "Working directory: $(pwd)"
+          echo "Archive files created:"
+          ls -la *.tar.gz *.zip
           
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
