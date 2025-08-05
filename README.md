@@ -15,7 +15,7 @@ A comprehensive reference implementation for SWIFT MT ↔ MX message translation
 - **Enterprise Authentication**: Federated login support with OIDC (Asgardeo)
 - **Enterprise Ready**: Production-ready implementations with observability
 
-## � Get Started Now
+## Get Started Now
 
 **🚀 Ready to use? Download the latest release:**
 
