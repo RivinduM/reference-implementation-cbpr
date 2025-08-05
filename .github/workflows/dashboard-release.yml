@@ -325,6 +325,16 @@ jobs:
           echo "Next version: $NEXT_VERSION"
           echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
           
+      - name: Create Version Bump Branch
+        id: create_branch
+        run: |
+          BRANCH_NAME="chore/bump-dashboard-version-${{ steps.next_version.outputs.next_version }}"
+          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          
+          # Create and switch to new branch
+          git checkout -b "${BRANCH_NAME}"
+          echo "Created branch: ${BRANCH_NAME}"
+          
       - name: Update Package.json Version
         run: |
           cd ${{ env.DASHBOARD_PATH }}
@@ -363,9 +373,9 @@ jobs:
           fi
           
           # Create commit message
-          COMMIT_MSG="chore(dashboard): bump version to ${{ steps.next_version.outputs.next_version }} after release ${{ needs.build-dashboard.outputs.version }}
+          COMMIT_MSG="chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }}
 
-          - Automatic version bump after successful dashboard release
+          - Automatic version bump after successful dashboard release ${{ needs.build-dashboard.outputs.version }}
           - Prepares for next development cycle
           - Previous release: ${{ needs.build-dashboard.outputs.tag }}
           - Updated opensearch_dashboards.json and package.json versions"
@@ -375,10 +385,54 @@ jobs:
           - Updated yarn.lock with resolved dependencies"
           fi
           
-          git commit -m "$COMMIT_MSG"
-          git push origin main
+          COMMIT_MSG="$COMMIT_MSG
+
+          This PR was automatically created by the release workflow."
           
-          echo "✅ Dashboard version bumped to ${{ steps.next_version.outputs.next_version }}"
+          git commit -m "$COMMIT_MSG"
+          git push origin "${{ steps.create_branch.outputs.branch_name }}"
+          
+          echo "✅ Dashboard version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
+          
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Prepare PR body with yarn.lock info if applicable
+          YARN_LOCK_INFO=""
+          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+            YARN_LOCK_INFO="
+          - Updated \`yarn.lock\` with resolved dependencies from build process"
+          fi
+          
+          gh pr create \
+            --title "chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }}" \
+            --body "## 🔄 Automatic Version Bump
+
+          This PR automatically bumps the dashboard version after successful release.
+
+          **Release Information:**
+          - Previous version: ${{ needs.build-dashboard.outputs.version }}
+          - New version: ${{ steps.next_version.outputs.next_version }}
+          - Release tag: ${{ needs.build-dashboard.outputs.tag }}
+          - Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-dashboard.outputs.tag }}
+
+          **Changes:**
+          - Updated \`dashboard/swift_dashboard/opensearch_dashboards.json\` version
+          - Updated \`dashboard/swift_dashboard/package.json\` version${YARN_LOCK_INFO}
+          - Prepares repository for next development cycle
+
+          **Auto-merge:** This PR can be safely merged as it only contains version updates and dependency locks.
+
+          ---
+          🤖 *This PR was automatically created by the [dashboard release workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*" \
+            --head "${{ steps.create_branch.outputs.branch_name }}" \
+            --base "main" \
+            --label "automated" \
+            --label "version-bump" \
+            --label "dashboard"
+          
+          echo "✅ Pull request created for dashboard version bump"
 
   notify:
     name: Notify Release
@@ -394,7 +448,8 @@ jobs:
           echo "📦 Download: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-dashboard.outputs.tag }}"
           
           if [[ "${{ needs.version-bump.result }}" == "success" ]]; then
-            echo "🔢 Version automatically bumped for next development cycle"
+            echo "🔢 Version bump PR created for next development cycle"
+            echo "📝 Review and merge the version bump PR to complete the release process"
           elif [[ "${{ needs.version-bump.result }}" == "skipped" ]]; then
             echo "⏭️ Version bump skipped (pre-release or manual trigger)"
           else

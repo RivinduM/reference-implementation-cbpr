@@ -397,6 +397,16 @@ jobs:
           echo "Next version: $NEXT_VERSION"
           echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
           
+      - name: Create Version Bump Branch
+        id: create_branch
+        run: |
+          BRANCH_NAME="chore/bump-translator-version-${{ steps.next_version.outputs.next_version }}"
+          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          
+          # Create and switch to new branch
+          git checkout -b "${BRANCH_NAME}"
+          echo "Created branch: ${BRANCH_NAME}"
+          
       - name: Update Ballerina.toml Version
         run: |
           cd ${{ env.PROJECT_PATH }}
@@ -419,15 +429,49 @@ jobs:
             exit 0
           fi
           
-          git commit -m "chore: bump version to ${{ steps.next_version.outputs.next_version }} after release ${{ needs.build.outputs.version }}
+          git commit -m "chore: bump translator version to ${{ steps.next_version.outputs.next_version }}
 
-          - Automatic version bump after successful release
+          - Automatic version bump after successful release ${{ needs.build.outputs.version }}
           - Prepares for next development cycle
-          - Previous release: ${{ needs.build.outputs.tag }}"
+          - Previous release: ${{ needs.build.outputs.tag }}
           
-          git push origin main
+          This PR was automatically created by the release workflow."
           
-          echo "✅ Version bumped to ${{ steps.next_version.outputs.next_version }}"
+          git push origin "${{ steps.create_branch.outputs.branch_name }}"
+          
+          echo "✅ Version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
+          
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "chore: bump translator version to ${{ steps.next_version.outputs.next_version }}" \
+            --body "## 🔄 Automatic Version Bump
+
+          This PR automatically bumps the translator version after successful release.
+
+          **Release Information:**
+          - Previous version: ${{ needs.build.outputs.version }}
+          - New version: ${{ steps.next_version.outputs.next_version }}
+          - Release tag: ${{ needs.build.outputs.tag }}
+          - Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build.outputs.tag }}
+
+          **Changes:**
+          - Updated \`translator/integrations/ftp-sftp/swiftMtMxTranslator/Ballerina.toml\` version
+          - Prepares repository for next development cycle
+
+          **Auto-merge:** This PR can be safely merged as it only contains version updates.
+
+          ---
+          🤖 *This PR was automatically created by the [translator release workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*" \
+            --head "${{ steps.create_branch.outputs.branch_name }}" \
+            --base "main" \
+            --label "automated" \
+            --label "version-bump" \
+            --label "translator"
+          
+          echo "✅ Pull request created for version bump"
 
   notify:
     name: Notify Release
@@ -443,7 +487,8 @@ jobs:
           echo "📦 Download: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build.outputs.tag }}"
           
           if [[ "${{ needs.version-bump.result }}" == "success" ]]; then
-            echo "🔢 Version automatically bumped for next development cycle"
+            echo "🔢 Version bump PR created for next development cycle"
+            echo "📝 Review and merge the version bump PR to complete the release process"
           elif [[ "${{ needs.version-bump.result }}" == "skipped" ]]; then
             echo "⏭️ Version bump skipped (pre-release or manual trigger)"
           else
