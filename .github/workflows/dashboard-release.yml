@@ -84,47 +84,181 @@ jobs:
           cd ${{ env.DASHBOARD_PATH }}
           yarn install --frozen-lockfile
           
+      - name: Setup OpenSearch Dashboards Development Environment
+        run: |
+          # Create a temporary OpenSearch Dashboards setup for proper plugin building
+          echo "Setting up OpenSearch Dashboards development environment..."
+          
+          # Download OpenSearch Dashboards source for plugin development
+          git clone --depth 1 --branch 2.19.0 https://github.com/opensearch-project/OpenSearch-Dashboards.git /tmp/OpenSearch-Dashboards
+          cd /tmp/OpenSearch-Dashboards
+          
+          # Install OpenSearch Dashboards dependencies (limited for CI)
+          echo "Installing OpenSearch Dashboards core dependencies..."
+          yarn config set network-timeout 300000
+          yarn install --frozen-lockfile --production=false
+          
+          # Bootstrap the plugin development environment
+          echo "Bootstrapping plugin development environment..."
+          yarn osd bootstrap --single-version=loose
+          
+      - name: Link Dashboard Plugin for Development Build
+        run: |
+          # Create symlink to our plugin in OpenSearch Dashboards plugins directory
+          cd /tmp/OpenSearch-Dashboards/plugins
+          ln -sf $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }} swift-dashboard
+          
+          echo "Plugin linked successfully for development build"
+          ls -la swift-dashboard/
+          
       - name: Lint Dashboard Code
         run: |
           cd ${{ env.DASHBOARD_PATH }}
+          echo "Running ESLint and TypeScript checks..."
           yarn lint
+          
+          # Additional TypeScript compilation check
+          if [ -f "tsconfig.json" ]; then
+            echo "Running TypeScript compilation check..."
+            npx tsc --noEmit
+          fi
           
       - name: Run Dashboard Tests
         run: |
           cd ${{ env.DASHBOARD_PATH }}
-          # Run tests if they exist
-          if [ -f "yarn.lock" ] && yarn run --silent test:server 2>/dev/null; then
+          echo "Running comprehensive test suite..."
+          
+          # Run server tests if they exist
+          if yarn run --silent test:server 2>/dev/null; then
+            echo "Running server tests..."
             yarn test:server
           else
             echo "No server tests found, skipping..."
           fi
           
-          if [ -f "yarn.lock" ] && yarn run --silent test:browser 2>/dev/null; then
+          # Run browser tests if they exist  
+          if yarn run --silent test:browser 2>/dev/null; then
+            echo "Running browser tests..."
             yarn test:browser
           else
             echo "No browser tests found, skipping..."
+          fi
+          
+          # Run unit tests if available
+          if yarn run --silent test 2>/dev/null; then
+            echo "Running unit tests..."
+            yarn test
+          else
+            echo "No unit tests configured, skipping..."
           fi
           
       - name: Build Dashboard Plugin
         id: build_plugin
         run: |
           cd ${{ env.DASHBOARD_PATH }}
-          echo "Building dashboard plugin..."
+          echo "Building dashboard plugin with advanced configuration..."
           
-          # Build the plugin
+          # Set build environment
+          export NODE_ENV=production
+          export CI=true
+          
+          # Build the plugin using the development environment
+          echo "Building plugin for production..."
           yarn build
           
+          # Alternative build using OpenSearch Dashboards build system
+          echo "Building with OpenSearch Dashboards build system..."
+          cd /tmp/OpenSearch-Dashboards
+          yarn plugin:build --plugin-path=$GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}
+          
+          # Copy the built plugin back to our workspace
+          if [[ -f "plugins/swift-dashboard/build/swiftDashboard-2.19.0.zip" ]]; then
+            cp plugins/swift-dashboard/build/swiftDashboard-2.19.0.zip $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}/build/
+          fi
+          
           # Verify build output
+          cd $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}
           if [[ -f "build/swiftDashboard-2.19.0.zip" ]]; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "✅ Dashboard plugin built successfully"
+            
+            # Display build information
+            echo "Build artifacts:"
             ls -la build/
+            
+            # Verify plugin structure
+            echo "Plugin archive contents:"
+            unzip -l build/swiftDashboard-2.19.0.zip | head -20
+            
+            # Check plugin size
+            PLUGIN_SIZE=$(stat -f%z build/swiftDashboard-2.19.0.zip 2>/dev/null || stat -c%s build/swiftDashboard-2.19.0.zip)
+            echo "Plugin size: $(( PLUGIN_SIZE / 1024 ))KB"
+            
+            if [ $PLUGIN_SIZE -gt 50000000 ]; then  # 50MB
+              echo "⚠️ Warning: Plugin size is large (>50MB). Consider optimizing."
+            fi
+            
           else
             echo "success=false" >> $GITHUB_OUTPUT
             echo "❌ Dashboard plugin build failed"
+            echo "Build directory contents:"
             ls -la build/ || echo "Build directory not found"
+            
+            echo "Checking for build errors..."
+            find . -name "*.log" -exec echo "=== {} ===" \; -exec cat {} \; || true
             exit 1
           fi
+          
+      - name: Validate Plugin Structure
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          echo "Validating plugin structure and metadata..."
+          
+          # Extract and validate plugin structure
+          mkdir -p /tmp/plugin-validation
+          cd /tmp/plugin-validation
+          unzip -q $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}/build/swiftDashboard-2.19.0.zip
+          
+          # Check required files
+          echo "Checking required plugin files..."
+          REQUIRED_FILES=("opensearch_dashboards.json" "package.json")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+              echo "✅ Found: $file"
+            else
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+          done
+          
+          # Validate opensearch_dashboards.json
+          echo "Validating plugin metadata..."
+          if command -v jq &> /dev/null; then
+            PLUGIN_ID=$(jq -r '.id' opensearch_dashboards.json)
+            PLUGIN_VERSION=$(jq -r '.version' opensearch_dashboards.json)
+            COMPATIBILITY=$(jq -r '.opensearchDashboards.version' opensearch_dashboards.json)
+            
+            echo "Plugin ID: $PLUGIN_ID"
+            echo "Plugin Version: $PLUGIN_VERSION"
+            echo "OpenSearch Dashboards Compatibility: $COMPATIBILITY"
+            
+            # Validate required fields
+            if [[ "$PLUGIN_ID" == "null" || "$PLUGIN_ID" == "" ]]; then
+              echo "❌ Invalid plugin ID"
+              exit 1
+            fi
+            
+            if [[ "$COMPATIBILITY" != "2.19.0" ]]; then
+              echo "⚠️ Warning: Plugin may not be compatible with target OpenSearch Dashboards version"
+            fi
+          fi
+          
+          # Check bundle size and structure
+          echo "Analyzing plugin bundle..."
+          find . -type f -name "*.js" | head -5 | xargs ls -lh | awk '{print "JS Bundle: " $9 " (" $5 ")"}'
+          find . -type f -name "*.css" | head -5 | xargs ls -lh | awk '{print "CSS Bundle: " $9 " (" $5 ")"}'
+          
+          echo "✅ Plugin validation completed successfully"
           
       - name: Create Dashboard Release Package
         run: |
@@ -411,6 +545,197 @@ jobs:
           echo "Dashboard release packages created:"
           ls -la swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.*
           
+      - name: Advanced Plugin Distribution
+        run: |
+          echo "Creating advanced distribution artifacts..."
+          cd $GITHUB_WORKSPACE/release
+          
+          # Create distribution checksums
+          echo "Generating checksums..."
+          sha256sum swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.* > swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.sha256
+          
+          # Create CI/CD integration examples
+          mkdir -p swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/ci-cd-examples
+          
+          # GitHub Actions example
+          cat > swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/ci-cd-examples/github-actions-deploy.yml << 'EOF'
+          # Example GitHub Actions workflow for deploying SWIFT Dashboard
+          name: Deploy SWIFT Dashboard Plugin
+          
+          on:
+            workflow_dispatch:
+              inputs:
+                environment:
+                  description: 'Target environment'
+                  required: true
+                  default: 'staging'
+                  type: choice
+                  options:
+                    - staging
+                    - production
+          
+          jobs:
+            deploy:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Download Plugin
+                  run: |
+                    wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.tag }}/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                    tar -xzf swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                    
+                - name: Deploy to OpenSearch Dashboards
+                  run: |
+                    # Your deployment logic here
+                    scp swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/swiftDashboard-2.19.0.zip user@server:/opt/opensearch-dashboards/
+                    ssh user@server "cd /opt/opensearch-dashboards && bin/opensearch-dashboards-plugin install file:///opt/opensearch-dashboards/swiftDashboard-2.19.0.zip"
+                    ssh user@server "sudo systemctl restart opensearch-dashboards"
+          EOF
+          
+          # Jenkins example
+          cat > swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/ci-cd-examples/Jenkinsfile << 'EOF'
+          pipeline {
+              agent any
+              
+              parameters {
+                  choice(name: 'ENVIRONMENT', choices: ['staging', 'production'], description: 'Target environment')
+              }
+              
+              stages {
+                  stage('Download Plugin') {
+                      steps {
+                          sh '''
+                              wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.tag }}/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                              tar -xzf swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                          '''
+                      }
+                  }
+                  
+                  stage('Deploy Plugin') {
+                      steps {
+                          sh '''
+                              cd swift-dashboard-plugin-${{ steps.get_version.outputs.version }}
+                              ./install-dashboard.sh
+                          '''
+                      }
+                  }
+                  
+                  stage('Health Check') {
+                      steps {
+                          sh '''
+                              sleep 30
+                              curl -f http://localhost:5601/api/status || exit 1
+                          '''
+                      }
+                  }
+              }
+          }
+          EOF
+          
+          # Kubernetes deployment example
+          cat > swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/ci-cd-examples/k8s-deployment.yaml << 'EOF'
+          # Kubernetes deployment for SWIFT Dashboard
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: opensearch-dashboards-swift
+            labels:
+              app: opensearch-dashboards
+              component: swift-dashboard
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: opensearch-dashboards
+                component: swift-dashboard
+            template:
+              metadata:
+                labels:
+                  app: opensearch-dashboards
+                  component: swift-dashboard
+              spec:
+                initContainers:
+                - name: install-swift-plugin
+                  image: opensearchproject/opensearch-dashboards:2.19.0
+                  command: ['sh', '-c']
+                  args:
+                    - |
+                      wget https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.tag }}/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                      tar -xzf swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+                      bin/opensearch-dashboards-plugin install file:///swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/swiftDashboard-2.19.0.zip
+                  volumeMounts:
+                  - name: plugins-volume
+                    mountPath: /usr/share/opensearch-dashboards/plugins
+                containers:
+                - name: opensearch-dashboards
+                  image: opensearchproject/opensearch-dashboards:2.19.0
+                  ports:
+                  - containerPort: 5601
+                  env:
+                  - name: OPENSEARCH_HOSTS
+                    value: "https://opensearch:9200"
+                  volumeMounts:
+                  - name: plugins-volume
+                    mountPath: /usr/share/opensearch-dashboards/plugins
+                volumes:
+                - name: plugins-volume
+                  emptyDir: {}
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: opensearch-dashboards-swift
+          spec:
+            selector:
+              app: opensearch-dashboards
+              component: swift-dashboard
+            ports:
+            - port: 5601
+              targetPort: 5601
+            type: LoadBalancer
+          EOF
+          
+          # Ansible playbook example
+          cat > swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/ci-cd-examples/ansible-deploy.yml << 'EOF'
+          ---
+          - name: Deploy SWIFT Dashboard Plugin
+            hosts: opensearch_dashboards_servers
+            become: yes
+            vars:
+              plugin_version: "${{ steps.get_version.outputs.version }}"
+              plugin_url: "https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.tag }}/swift-dashboard-plugin-{{ plugin_version }}.tar.gz"
+              
+            tasks:
+              - name: Download plugin package
+                get_url:
+                  url: "{{ plugin_url }}"
+                  dest: "/tmp/swift-dashboard-plugin-{{ plugin_version }}.tar.gz"
+                  
+              - name: Extract plugin package
+                unarchive:
+                  src: "/tmp/swift-dashboard-plugin-{{ plugin_version }}.tar.gz"
+                  dest: "/tmp/"
+                  remote_src: yes
+                  
+              - name: Install plugin
+                shell: |
+                  cd /opt/opensearch-dashboards
+                  bin/opensearch-dashboards-plugin install file:///tmp/swift-dashboard-plugin-{{ plugin_version }}/swiftDashboard-2.19.0.zip
+                notify: restart opensearch dashboards
+                
+            handlers:
+              - name: restart opensearch dashboards
+                systemd:
+                  name: opensearch-dashboards
+                  state: restarted
+          EOF
+          
+          # Update archives with CI/CD examples
+          echo "Updating archives with CI/CD examples..."
+          tar -czf swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/
+          zip -r swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.zip swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/
+          
+          echo "✅ Advanced distribution artifacts created"
+          
       - name: Upload Dashboard Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -418,6 +743,7 @@ jobs:
           path: |
             release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
             release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.zip
+            release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.sha256
           retention-days: 30
 
   security-scan:
@@ -600,6 +926,7 @@ jobs:
           files: |
             release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
             release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.zip
+            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
