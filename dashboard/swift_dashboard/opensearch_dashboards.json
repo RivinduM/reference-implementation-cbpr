@@ -1,6 +1,6 @@
 {
   "id": "swiftDashboard",
-  "version": "1.0.3",
+  "version": "v1.0.4",
   "opensearchDashboardsVersion": "2.19.0",
   "server": true,
   "ui": true,
