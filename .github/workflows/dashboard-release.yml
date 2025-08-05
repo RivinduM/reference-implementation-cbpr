@@ -61,8 +61,17 @@ jobs:
       - name: Install Plugin Dependencies and Build
         run: |
           cd OpenSearch-Dashboards/plugins/swift_dashboard
-          echo "Installing plugin dependencies..."
+          echo "Installing plugin dependencies and updating lock file..."
+          
+          # Remove existing yarn.lock and node_modules to ensure clean install
+          rm -f yarn.lock
+          rm -rf node_modules
+          
+          # Install dependencies (this will generate a new yarn.lock)
           yarn install
+          
+          # Copy updated yarn.lock back to source
+          cp yarn.lock $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}/yarn.lock
           
           echo "Building plugin..."
           yarn build
@@ -143,6 +152,15 @@ jobs:
           else
             echo "❌ No plugin zip found in build directory"
             exit 1
+          fi
+          
+          # Check if yarn.lock was updated during build
+          if ! cmp -s $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}/yarn.lock OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock; then
+            echo "yarn.lock was updated during build - will be committed"
+            echo "YARN_LOCK_UPDATED=true" >> $GITHUB_ENV
+          else
+            echo "yarn.lock unchanged"
+            echo "YARN_LOCK_UPDATED=false" >> $GITHUB_ENV
           fi
 
       - name: Upload Dashboard Artifacts
@@ -405,9 +423,15 @@ jobs:
           
       - name: Commit and Push Version Bump
         run: |
-          # Add both plugin configuration files
+          # Add plugin configuration files
           git add ${{ env.DASHBOARD_PATH }}/opensearch_dashboards.json
           [[ -f "${{ env.DASHBOARD_PATH }}/package.json" ]] && git add ${{ env.DASHBOARD_PATH }}/package.json || true
+          
+          # Add yarn.lock if it was updated during build
+          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+            git add ${{ env.DASHBOARD_PATH }}/yarn.lock
+            echo "Including updated yarn.lock in commit"
+          fi
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then
@@ -415,13 +439,20 @@ jobs:
             exit 0
           fi
           
-          git commit -m "chore(dashboard): bump version to ${{ steps.next_version.outputs.next_version }} after release ${{ needs.build-dashboard.outputs.version }}
+          # Create commit message
+          COMMIT_MSG="chore(dashboard): bump version to ${{ steps.next_version.outputs.next_version }} after release ${{ needs.build-dashboard.outputs.version }}
 
           - Automatic version bump after successful dashboard release
           - Prepares for next development cycle
           - Previous release: ${{ needs.build-dashboard.outputs.tag }}
           - Updated opensearch_dashboards.json and package.json versions"
           
+          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+            COMMIT_MSG="$COMMIT_MSG
+          - Updated yarn.lock with resolved dependencies"
+          fi
+          
+          git commit -m "$COMMIT_MSG"
           git push origin main
           
           echo "✅ Dashboard version bumped to ${{ steps.next_version.outputs.next_version }}"
