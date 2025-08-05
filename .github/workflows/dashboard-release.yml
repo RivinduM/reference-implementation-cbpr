@@ -3,7 +3,7 @@ name: Build and Release SWIFT Dashboard
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
+      - 'v*'
     paths:
       - 'dashboard/**'
   workflow_dispatch:
@@ -20,18 +20,13 @@ on:
         type: string
 
 env:
-  DASHBOARD_PATH: "dashboard/swift_dashboard"
-  NODE_VERSION: "20"
+  NODE_VERSION: '20'
+  DASHBOARD_PATH: 'dashboard/swift_dashboard'
 
 jobs:
   build-dashboard:
     name: Build Dashboard Plugin
     runs-on: ubuntu-latest
-    
-    outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      tag: ${{ steps.get_version.outputs.tag }}
-      plugin_built: ${{ steps.build_plugin.outputs.success }}
     
     steps:
       - name: Checkout Repository
@@ -42,34 +37,47 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'yarn'
-          cache-dependency-path: ${{ env.DASHBOARD_PATH }}/yarn.lock
           
+      - name: Clone OpenSearch Dashboards
+        run: |
+          echo "Cloning OpenSearch Dashboards repository..."
+          git clone https://github.com/opensearch-project/OpenSearch-Dashboards.git
+          cd OpenSearch-Dashboards
+          echo "Staying on main branch for compatibility"
+          
+      - name: Bootstrap OpenSearch Dashboards
+        run: |
+          cd OpenSearch-Dashboards
+          echo "Running yarn osd bootstrap..."
+          yarn osd bootstrap
+          
+      - name: Copy Dashboard Plugin to Plugins Directory
+        run: |
+          echo "Copying swift_dashboard to OpenSearch Dashboards plugins directory..."
+          cp -r ${{ env.DASHBOARD_PATH }} OpenSearch-Dashboards/plugins/swift_dashboard
+          
+      - name: Install Plugin Dependencies and Build
+        run: |
+          cd OpenSearch-Dashboards/plugins/swift_dashboard
+          echo "Installing plugin dependencies..."
+          yarn install
+          
+          echo "Building plugin..."
+          yarn build
+          
+          # Verify build output
+          if [[ -f "build/swiftDashboard-*.zip" ]]; then
+            echo "✅ Dashboard plugin built successfully"
+            ls -la build/
+          else
+            echo "❌ Dashboard plugin build failed"
+            ls -la build/ || echo "Build directory not found"
+            exit 1
+          fi
+        id: build_plugin
+        
       - name: Get Version Info
         id: get_version
-        run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/* ]]; then
-            # Extract version from tag
-            TAG=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG#v}
-          elif [[ "${{ github.event.inputs.release_tag }}" != "" ]]; then
-            # Use provided tag
-            TAG="${{ github.event.inputs.release_tag }}"
-            VERSION=${TAG#v}
-          else
-            # Use version from package.json + commit hash
-            cd ${{ env.DASHBOARD_PATH }}
-            PACKAGE_VERSION=$(node -p "require('./package.json').version")
-            COMMIT_HASH=$(git rev-parse --short HEAD)
-            VERSION="${PACKAGE_VERSION}-${COMMIT_HASH}"
-            TAG="v${VERSION}"
-          fi
-          
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "Version: ${VERSION}"
-          echo "Tag: ${TAG}"
-          
-      - name: Update Dashboard Version
         run: |
           cd ${{ env.DASHBOARD_PATH }}
           # Update package.json with the release version
@@ -90,7 +98,7 @@ jobs:
           echo "Setting up OpenSearch Dashboards development environment..."
           
           # Download OpenSearch Dashboards source for plugin development
-          git clone --depth 1 --branch 2.19.0 https://github.com/opensearch-project/OpenSearch-Dashboards.git /tmp/OpenSearch-Dashboards
+          git clone --depth 1 https://github.com/opensearch-project/OpenSearch-Dashboards.git /tmp/OpenSearch-Dashboards
           cd /tmp/OpenSearch-Dashboards
           
           # Install OpenSearch Dashboards dependencies (limited for CI)
