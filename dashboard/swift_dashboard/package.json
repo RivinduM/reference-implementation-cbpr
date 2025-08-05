@@ -1,6 +1,6 @@
 {
   "name": "swift-dashboard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SWIFT Dashboard for OpenSearch",
   "main": "target/public",
   "scripts": {
@@ -44,7 +44,7 @@
     "typescript": "^5.8.2"
   },
   "opensearchDashboards": {
-    "version": "2.19.0",
+    "version": "1.0.1",
     "templateVersion": "1.0.0",
     "node-version": "20.12.2",
     "npm-version": "9.8.1"
