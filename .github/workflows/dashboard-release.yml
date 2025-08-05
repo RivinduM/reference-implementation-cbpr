@@ -94,18 +94,34 @@ jobs:
             TAG="${{ github.event.inputs.release_tag }}"
             VERSION=${TAG#v}
           else
-            # Use version from package.json + commit hash
+            # Use version from opensearch_dashboards.json + commit hash
             cd ${{ env.DASHBOARD_PATH }}
-            PACKAGE_VERSION=$(node -p "require('./package.json').version")
+            PACKAGE_VERSION=$(node -p "require('./opensearch_dashboards.json').version")
             COMMIT_HASH=$(git rev-parse --short HEAD)
             VERSION="${PACKAGE_VERSION}-${COMMIT_HASH}"
             TAG="v${VERSION}"
+          fi
+          
+          # Update plugin version but preserve OpenSearch Dashboards compatibility
+          cd ${{ env.DASHBOARD_PATH }}
+          
+          # Update opensearch_dashboards.json version only (not opensearchDashboardsVersion)
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" opensearch_dashboards.json
+          
+          # Also update package.json if it exists
+          if [[ -f "package.json" ]]; then
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
           fi
           
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
           echo "Tag: ${TAG}"
+          
+          # Verify the updates
+          echo "Updated plugin configuration:"
+          grep -E '"version"|"opensearchDashboardsVersion"' opensearch_dashboards.json || true
+          [[ -f "package.json" ]] && grep '"version"' package.json || true
           
       - name: Prepare Release Artifacts
         run: |
@@ -372,17 +388,26 @@ jobs:
         run: |
           cd ${{ env.DASHBOARD_PATH }}
           
-          # Update version in package.json
-          sed -i 's/"version": "[^"]*"/"version": "${{ steps.next_version.outputs.next_version }}"/' package.json
+          # Update version in opensearch_dashboards.json (main plugin config)
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${{ steps.next_version.outputs.next_version }}\"/" opensearch_dashboards.json
           
-          echo "Updated package.json version to ${{ steps.next_version.outputs.next_version }}"
+          # Also update package.json if it exists
+          if [[ -f "package.json" ]]; then
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${{ steps.next_version.outputs.next_version }}\"/" package.json
+          fi
           
-          # Verify the change
-          grep '"version"' package.json
+          echo "Updated plugin version to ${{ steps.next_version.outputs.next_version }}"
+          
+          # Verify the changes
+          echo "Updated opensearch_dashboards.json:"
+          grep -E '"version"|"opensearchDashboardsVersion"' opensearch_dashboards.json
+          [[ -f "package.json" ]] && echo "Updated package.json:" && grep '"version"' package.json || true
           
       - name: Commit and Push Version Bump
         run: |
-          git add ${{ env.DASHBOARD_PATH }}/package.json
+          # Add both plugin configuration files
+          git add ${{ env.DASHBOARD_PATH }}/opensearch_dashboards.json
+          [[ -f "${{ env.DASHBOARD_PATH }}/package.json" ]] && git add ${{ env.DASHBOARD_PATH }}/package.json || true
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then
@@ -394,7 +419,8 @@ jobs:
 
           - Automatic version bump after successful dashboard release
           - Prepares for next development cycle
-          - Previous release: ${{ needs.build-dashboard.outputs.tag }}"
+          - Previous release: ${{ needs.build-dashboard.outputs.tag }}
+          - Updated opensearch_dashboards.json and package.json versions"
           
           git push origin main
           
