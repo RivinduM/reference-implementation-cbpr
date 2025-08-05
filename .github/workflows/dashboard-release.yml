@@ -105,12 +105,12 @@ jobs:
           # Update plugin version but preserve OpenSearch Dashboards compatibility
           cd ${{ env.DASHBOARD_PATH }}
           
-          # Update opensearch_dashboards.json version only (not opensearchDashboardsVersion)
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" opensearch_dashboards.json
+          # Update opensearch_dashboards.json version only
+          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VERSION'"/}' opensearch_dashboards.json
           
-          # Also update package.json if it exists
+          # Update package.json plugin version but preserve opensearchDashboards.version
           if [[ -f "package.json" ]]; then
-            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
+            sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VERSION'"/}' package.json
           fi
           
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
@@ -388,12 +388,12 @@ jobs:
         run: |
           cd ${{ env.DASHBOARD_PATH }}
           
-          # Update version in opensearch_dashboards.json (main plugin config)
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${{ steps.next_version.outputs.next_version }}\"/" opensearch_dashboards.json
+          # Update version in opensearch_dashboards.json (only first occurrence - the plugin version)
+          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "${{ steps.next_version.outputs.next_version }}"/}' opensearch_dashboards.json
           
-          # Also update package.json if it exists
+          # Update version in package.json (only first occurrence - the plugin version) 
           if [[ -f "package.json" ]]; then
-            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${{ steps.next_version.outputs.next_version }}\"/" package.json
+            sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "${{ steps.next_version.outputs.next_version }}"/}' package.json
           fi
           
           echo "Updated plugin version to ${{ steps.next_version.outputs.next_version }}"
@@ -401,7 +401,7 @@ jobs:
           # Verify the changes
           echo "Updated opensearch_dashboards.json:"
           grep -E '"version"|"opensearchDashboardsVersion"' opensearch_dashboards.json
-          [[ -f "package.json" ]] && echo "Updated package.json:" && grep '"version"' package.json || true
+          [[ -f "package.json" ]] && echo "Updated package.json:" && grep -A5 -B5 '"version"' package.json || true
           
       - name: Commit and Push Version Bump
         run: |
