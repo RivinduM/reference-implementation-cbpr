@@ -156,13 +156,24 @@ jobs:
       - name: Extract for Scanning
         run: |
           cd release
-          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+          echo "Available files for scanning:"
+          ls -la
+          
+          # Create a temporary directory for the plugin contents
+          mkdir -p plugin-scan
+          cd plugin-scan
+          
+          # Extract the zip file for scanning
+          unzip -q ../swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
+          
+          echo "Extracted files for security scanning:"
+          find . -type f | head -20
           
       - name: Run Trivy Security Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
-          scan-ref: 'release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}'
+          scan-ref: 'release/plugin-scan'
           format: 'sarif'
           output: 'trivy-results.sarif'
           
@@ -209,35 +220,27 @@ jobs:
           
           ### 🚀 Quick Installation
           
-          #### Option 1: Automated Setup (Linux/macOS)
+          #### Option 1: Manual Installation
           ```bash
-          # Download and extract
-          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
-          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
-          cd swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
+          # Download the plugin
+          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
           
-          # Run automated installer
-          ./install-dashboard.sh
-          ```
-          
-          #### Option 2: Manual Installation
-          ```bash
           # Install into existing OpenSearch Dashboards
           cd /path/to/opensearch-dashboards
-          bin/opensearch-dashboards-plugin install file:///path/to/swiftDashboard-2.19.0.zip
+          bin/opensearch-dashboards-plugin install file:///path/to/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
           
           # Restart OpenSearch Dashboards
           sudo systemctl restart opensearch-dashboards
           ```
           
-          #### Option 3: Docker Deployment
+          #### Option 2: Docker Deployment
           ```bash
-          # Extract and run Docker stack
-          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
-          cd swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
-          docker-compose up -d
+          # Download the plugin
+          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
           
-          # Access dashboard at http://localhost:5601/app/swiftDashboard
+          # Use Docker with downloaded plugin
+          docker run -d -p 5601:5601 -v $(pwd)/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip:/tmp/plugin.zip opensearchproject/opensearch-dashboards:2.19.0 \
+            bash -c "bin/opensearch-dashboards-plugin install file:///tmp/plugin.zip && bin/opensearch-dashboards"
           ```
           
           ### ⚙️ System Requirements
@@ -293,8 +296,8 @@ jobs:
           
           | File | Description |
           |------|-------------|
-          | `swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz` | Complete package with installer (Linux/macOS) |
-          | `swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.zip` | Cross-platform package |
+          | `swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip` | Dashboard plugin package for OpenSearch Dashboards |
+          | `checksums.txt` | SHA256 checksums for verification |
           
           ---
           **Build Information**
@@ -316,9 +319,8 @@ jobs:
           draft: false
           prerelease: ${{ contains(needs.build-dashboard.outputs.version, '-') }}
           files: |
-            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
-            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.zip
-            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.sha256
+            release/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
+            release/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
