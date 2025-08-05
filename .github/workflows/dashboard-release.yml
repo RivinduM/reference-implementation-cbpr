@@ -242,89 +242,12 @@ jobs:
           cat > release_notes.md << 'EOF'
           ## SWIFT Dashboard Plugin Release ${{ needs.build-dashboard.outputs.version }}
           
-          ### 📊 Features
-          - **Real-time Monitoring**: Live message processing statistics and status
-          - **Message Analytics**: Transaction volume analysis and success rates
-          - **Error Analysis**: Categorized error reporting with drill-down capabilities
-          - **Currency Insights**: Transaction breakdown by currency with trending
-          - **Performance Metrics**: Processing times, throughput, and performance analysis
-          - **Advanced Search**: Full-text search across all message content
-          - **Visual Reports**: Interactive charts, graphs, and trend analysis
-          - **Role-based Access**: Federated authentication with OIDC support
-          
-          ### 🚀 Quick Installation
-          
-          #### Option 1: Manual Installation
-          ```bash
-          # Download the plugin
-          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
-          
-          # Install into existing OpenSearch Dashboards
-          cd /path/to/opensearch-dashboards
-          bin/opensearch-dashboards-plugin install file:///path/to/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
-          
-          # Restart OpenSearch Dashboards
-          sudo systemctl restart opensearch-dashboards
-          ```
-          
-          #### Option 2: Docker Deployment
-          ```bash
-          # Download the plugin
-          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip
-          
-          # Use Docker with downloaded plugin
-          docker run -d -p 5601:5601 -v $(pwd)/swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip:/tmp/plugin.zip opensearchproject/opensearch-dashboards:2.19.0 \
-            bash -c "bin/opensearch-dashboards-plugin install file:///tmp/plugin.zip && bin/opensearch-dashboards"
-          ```
-          
-          ### ⚙️ System Requirements
-          
-          - **OpenSearch**: Version 2.19.0 or higher
-          - **OpenSearch Dashboards**: Version 2.19.0 or higher
-          - **Java**: 17+ (for OpenSearch runtime)
-          - **RAM**: Minimum 4GB for stable operation
-          - **Storage**: 1GB+ for indices and logs
-          
-          ### 🔧 Configuration
-          
-          The dashboard automatically creates the required index mapping for `swift_messages` and includes:
-          
-          - Pre-configured visualizations for message analytics
-          - Error analysis dashboards with categorization
-          - Currency and transaction monitoring
-          - Performance metrics and trending
-          - Advanced search capabilities
-          
-          ### 🔐 Authentication Options
-          
-          - **OpenSearch Internal**: Native authentication with role-based access
-          - **OIDC Integration**: Supports Asgardeo and other identity providers
-          - **SAML 2.0**: Enterprise SSO integration
-          - **LDAP/Active Directory**: Corporate directory integration
-          
-          ### 🛠️ Integration with SWIFT Translator
-          
-          This dashboard works seamlessly with the [SWIFT MT/MX Translator](https://github.com/${{ github.repository }}/releases/latest) to provide:
-          
-          - Real-time monitoring of translation processes
-          - Error analysis and troubleshooting
-          - Performance optimization insights
-          - Historical transaction analysis
-          
           ### 📚 Documentation & Support
           
           - **📖 Setup Guide**: [Dashboard Documentation](https://github.com/${{ github.repository }}/blob/main/dashboard/README.md)
           - **🔧 Translator Integration**: [FTP/SFTP Guide](https://github.com/${{ github.repository }}/blob/main/translator/integrations/ftp-sftp/README.md)
           - **🐛 Issues**: [GitHub Issues](https://github.com/${{ github.repository }}/issues)
           - **💬 Support**: [GitHub Discussions](https://github.com/${{ github.repository }}/discussions)
-          
-          ### 🔍 What's New
-          
-          - ✅ **Production Ready**: Fully tested plugin with automated deployment
-          - ✅ **Security Scanned**: Vulnerability scanning with Trivy integration
-          - ✅ **Docker Support**: Complete Docker Compose setup included
-          - ✅ **Auto Installation**: One-command setup script for Linux/macOS
-          - ✅ **Enhanced Documentation**: Comprehensive setup and troubleshooting guides
           
           ### 💾 Download Assets
           
