@@ -68,12 +68,16 @@ jobs:
           yarn build
           
           # Verify build output
-          if [[ -f "build/swiftDashboard-*.zip" ]]; then
+          echo "Checking build directory contents:"
+          ls -la build/ || echo "Build directory not found"
+          
+          # Check if any swiftDashboard zip file exists
+          if ls build/swiftDashboard-*.zip 1> /dev/null 2>&1; then
             echo "✅ Dashboard plugin built successfully"
-            ls -la build/
+            PLUGIN_ZIP=$(ls build/swiftDashboard-*.zip | head -1)
+            echo "Found plugin: $PLUGIN_ZIP"
           else
-            echo "❌ Dashboard plugin build failed"
-            ls -la build/ || echo "Build directory not found"
+            echo "❌ Dashboard plugin build failed - no zip file found"
             exit 1
           fi
         id: build_plugin
