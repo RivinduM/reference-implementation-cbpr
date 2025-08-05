@@ -3,7 +3,7 @@ name: Build and Release SWIFT Dashboard
 on:
   push:
     tags:
-      - 'v*'
+      - 'dashboard-v*'  # Triggers on dashboard version tags like dashboard-v1.0.0
     paths:
       - 'dashboard/**'
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: 'Release tag (e.g., v1.0.0)'
+        description: 'Release tag (e.g., dashboard-v1.0.0)'
         required: false
         default: ''
         type: string
@@ -95,20 +95,20 @@ jobs:
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/* ]]; then
-            # Extract version from tag
+            # Extract version from tag (remove dashboard-v prefix)
             TAG=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG#v}
+            VERSION=${TAG#dashboard-v}
           elif [[ "${{ github.event.inputs.release_tag }}" != "" ]]; then
             # Use provided tag
             TAG="${{ github.event.inputs.release_tag }}"
-            VERSION=${TAG#v}
+            VERSION=${TAG#dashboard-v}
           else
             # Use version from opensearch_dashboards.json + commit hash
             cd ${{ env.DASHBOARD_PATH }}
             PACKAGE_VERSION=$(node -p "require('./opensearch_dashboards.json').version")
             COMMIT_HASH=$(git rev-parse --short HEAD)
             VERSION="${PACKAGE_VERSION}-${COMMIT_HASH}"
-            TAG="v${VERSION}"
+            TAG="dashboard-v${VERSION}"
           fi
           
           # Update plugin version but preserve OpenSearch Dashboards compatibility

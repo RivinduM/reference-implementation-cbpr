@@ -3,7 +3,7 @@ name: Build and Release SWIFT MT/MX Translator
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
+      - 'translator-v*'  # Triggers on translator version tags like translator-v1.0.0
     paths:
       - 'translator/integrations/ftp-sftp/**'
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: 'Release tag (e.g., v1.0.0)'
+        description: 'Release tag (e.g., translator-v1.0.0)'
         required: false
         default: ''
         type: string
@@ -51,19 +51,19 @@ jobs:
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/* ]]; then
-            # Extract version from tag
+            # Extract version from tag (remove translator-v prefix)
             TAG=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG#v}
+            VERSION=${TAG#translator-v}
           elif [[ "${{ github.event.inputs.release_tag }}" != "" ]]; then
             # Use provided tag
             TAG="${{ github.event.inputs.release_tag }}"
-            VERSION=${TAG#v}
+            VERSION=${TAG#translator-v}
           else
             # Use version from Ballerina.toml + commit hash
             TOML_VERSION=$(grep '^version = ' ${{ env.PROJECT_PATH }}/Ballerina.toml | cut -d'"' -f2)
             COMMIT_HASH=$(git rev-parse --short HEAD)
             VERSION="${TOML_VERSION}-${COMMIT_HASH}"
-            TAG="v${VERSION}"
+            TAG="translator-v${VERSION}"
           fi
           
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
