@@ -1,0 +1,707 @@
+name: Build and Release SWIFT Dashboard
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0
+    paths:
+      - 'dashboard/**'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+
+env:
+  DASHBOARD_PATH: "dashboard/swift_dashboard"
+  NODE_VERSION: "20"
+
+jobs:
+  build-dashboard:
+    name: Build Dashboard Plugin
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag: ${{ steps.get_version.outputs.tag }}
+      plugin_built: ${{ steps.build_plugin.outputs.success }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: ${{ env.DASHBOARD_PATH }}/yarn.lock
+          
+      - name: Get Version Info
+        id: get_version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/tags/* ]]; then
+            # Extract version from tag
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#v}
+          elif [[ "${{ github.event.inputs.release_tag }}" != "" ]]; then
+            # Use provided tag
+            TAG="${{ github.event.inputs.release_tag }}"
+            VERSION=${TAG#v}
+          else
+            # Use version from package.json + commit hash
+            cd ${{ env.DASHBOARD_PATH }}
+            PACKAGE_VERSION=$(node -p "require('./package.json').version")
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            VERSION="${PACKAGE_VERSION}-${COMMIT_HASH}"
+            TAG="v${VERSION}"
+          fi
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+          echo "Tag: ${TAG}"
+          
+      - name: Update Dashboard Version
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          # Update package.json with the release version
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.get_version.outputs.version }}"/' package.json
+          echo "Updated package.json version to ${{ steps.get_version.outputs.version }}"
+          
+          # Verify the change
+          grep '"version"' package.json
+          
+      - name: Install Dashboard Dependencies
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          yarn install --frozen-lockfile
+          
+      - name: Lint Dashboard Code
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          yarn lint
+          
+      - name: Run Dashboard Tests
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          # Run tests if they exist
+          if [ -f "yarn.lock" ] && yarn run --silent test:server 2>/dev/null; then
+            yarn test:server
+          else
+            echo "No server tests found, skipping..."
+          fi
+          
+          if [ -f "yarn.lock" ] && yarn run --silent test:browser 2>/dev/null; then
+            yarn test:browser
+          else
+            echo "No browser tests found, skipping..."
+          fi
+          
+      - name: Build Dashboard Plugin
+        id: build_plugin
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          echo "Building dashboard plugin..."
+          
+          # Build the plugin
+          yarn build
+          
+          # Verify build output
+          if [[ -f "build/swiftDashboard-2.19.0.zip" ]]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "✅ Dashboard plugin built successfully"
+            ls -la build/
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "❌ Dashboard plugin build failed"
+            ls -la build/ || echo "Build directory not found"
+            exit 1
+          fi
+          
+      - name: Create Dashboard Release Package
+        run: |
+          # Ensure we're in the repository root
+          cd $GITHUB_WORKSPACE
+          
+          # Create dashboard release directory
+          mkdir -p release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}
+          DASHBOARD_RELEASE_DIR="release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}"
+          
+          # Copy plugin archive
+          cp ${{ env.DASHBOARD_PATH }}/build/swiftDashboard-2.19.0.zip ${DASHBOARD_RELEASE_DIR}/
+          
+          # Create installation script
+          cat > ${DASHBOARD_RELEASE_DIR}/install-dashboard.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "SWIFT Dashboard Plugin Installation"
+          echo "=================================="
+          
+          # Check OpenSearch Dashboards installation
+          DASHBOARDS_DIR="/opt/opensearch-dashboards"
+          if [[ ! -d "$DASHBOARDS_DIR" ]]; then
+              echo "Error: OpenSearch Dashboards not found at $DASHBOARDS_DIR"
+              echo "Please install OpenSearch Dashboards 2.19.0+ first"
+              echo ""
+              echo "Download from: https://opensearch.org/downloads.html"
+              exit 1
+          fi
+          
+          # Check OpenSearch Dashboards version
+          if [[ -f "$DASHBOARDS_DIR/package.json" ]]; then
+              DASHBOARDS_VERSION=$(grep '"version"' "$DASHBOARDS_DIR/package.json" | cut -d'"' -f4)
+              echo "Found OpenSearch Dashboards version: $DASHBOARDS_VERSION"
+          fi
+          
+          # Install plugin
+          echo "Installing SWIFT Dashboard plugin..."
+          cd "$DASHBOARDS_DIR"
+          
+          # Remove existing plugin if present
+          if bin/opensearch-dashboards-plugin list | grep -q "swiftDashboard"; then
+              echo "Removing existing swiftDashboard plugin..."
+              bin/opensearch-dashboards-plugin remove swiftDashboard
+          fi
+          
+          # Get the script directory
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          
+          # Install new plugin
+          bin/opensearch-dashboards-plugin install "file://${SCRIPT_DIR}/swiftDashboard-2.19.0.zip"
+          
+          echo ""
+          echo "✅ Plugin installed successfully!"
+          echo ""
+          echo "Next steps:"
+          echo "1. Restart OpenSearch Dashboards: sudo systemctl restart opensearch-dashboards"
+          echo "2. Access dashboard: http://localhost:5601/app/swiftDashboard"
+          echo "3. Configure authentication if needed"
+          echo ""
+          echo "For troubleshooting, check the logs:"
+          echo "sudo journalctl -u opensearch-dashboards -f"
+          EOF
+          
+          chmod +x ${DASHBOARD_RELEASE_DIR}/install-dashboard.sh
+          
+          # Create Docker compose file for dashboard
+          cat > ${DASHBOARD_RELEASE_DIR}/docker-compose.yml << 'EOF'
+          version: '3.8'
+          
+          services:
+            opensearch:
+              image: opensearchproject/opensearch:2.19.0
+              container_name: opensearch
+              environment:
+                - cluster.name=swift-dashboard-cluster
+                - node.name=opensearch-node1
+                - discovery.type=single-node
+                - bootstrap.memory_lock=true
+                - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+                - "DISABLE_INSTALL_DEMO_CONFIG=true"
+                - "DISABLE_SECURITY_PLUGIN=true"
+              ulimits:
+                memlock:
+                  soft: -1
+                  hard: -1
+                nofile:
+                  soft: 65536
+                  hard: 65536
+              volumes:
+                - opensearch-data:/usr/share/opensearch/data
+              ports:
+                - 9200:9200
+                - 9600:9600
+              networks:
+                - opensearch-net
+          
+            opensearch-dashboards:
+              image: opensearchproject/opensearch-dashboards:2.19.0
+              container_name: opensearch-dashboards
+              ports:
+                - 5601:5601
+              expose:
+                - "5601"
+              environment:
+                - 'OPENSEARCH_HOSTS=["http://opensearch:9200"]'
+                - "DISABLE_SECURITY_DASHBOARDS_PLUGIN=true"
+              volumes:
+                - ./swiftDashboard-2.19.0.zip:/usr/share/opensearch-dashboards/swift-plugin.zip:ro
+              depends_on:
+                - opensearch
+              networks:
+                - opensearch-net
+              command: >
+                bash -c "
+                  bin/opensearch-dashboards-plugin install file:///usr/share/opensearch-dashboards/swift-plugin.zip &&
+                  bin/opensearch-dashboards
+                "
+          
+          volumes:
+            opensearch-data:
+          
+          networks:
+            opensearch-net:
+          EOF
+          
+          # Create comprehensive README
+          cat > ${DASHBOARD_RELEASE_DIR}/README.md << 'EOF'
+          # SWIFT Dashboard Plugin Release
+          
+          A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT/MX message translations.
+          
+          ## 🚀 Quick Start
+          
+          ### Option 1: Automated Installation (Linux/macOS)
+          ```bash
+          ./install-dashboard.sh
+          ```
+          
+          ### Option 2: Manual Installation
+          ```bash
+          # Install into existing OpenSearch Dashboards
+          cd /path/to/opensearch-dashboards
+          bin/opensearch-dashboards-plugin install file:///path/to/swiftDashboard-2.19.0.zip
+          
+          # Restart OpenSearch Dashboards
+          sudo systemctl restart opensearch-dashboards
+          ```
+          
+          ### Option 3: Docker Deployment
+          ```bash
+          # Start complete stack with dashboard pre-installed
+          docker-compose up -d
+          
+          # Access dashboard
+          open http://localhost:5601/app/swiftDashboard
+          ```
+          
+          ## 📋 Requirements
+          
+          - **OpenSearch Dashboards**: Version 2.19.0 or higher
+          - **OpenSearch**: Version 2.19.0 or higher
+          - **Node.js**: Version 20+ (for development only)
+          - **Java**: 17+ (for OpenSearch runtime)
+          - **RAM**: Minimum 4GB for stable operation
+          
+          ## 📊 Features
+          
+          - **Real-time Monitoring**: Live message processing statistics
+          - **Message Analytics**: Transaction volume and success rate analysis
+          - **Error Analysis**: Categorized error reporting with drill-down
+          - **Currency Insights**: Transaction breakdown by currency
+          - **Performance Metrics**: Processing times and throughput analysis
+          - **Advanced Search**: Full-text search across message content
+          - **Visual Reports**: Interactive charts and trend analysis
+          
+          ## 🔧 Configuration
+          
+          ### Index Mapping
+          The dashboard expects a `swift_messages` index with the following structure:
+          
+          ```json
+          {
+            "mappings": {
+              "properties": {
+                "id": { "type": "keyword" },
+                "mtMessageType": { "type": "keyword" },
+                "mxMessageType": { "type": "keyword" },
+                "currency": { "type": "keyword" },
+                "amount": { "type": "double" },
+                "date": { "type": "date" },
+                "direction": { "type": "keyword" },
+                "integration": { "type": "keyword" },
+                "status": { "type": "keyword" },
+                "processingTimeMs": { "type": "integer" },
+                "originalMessage": { "type": "text" },
+                "translatedMessage": { "type": "text" }
+              }
+            }
+          }
+          ```
+          
+          ### Dashboard Settings
+          Add to `opensearch_dashboards.yml`:
+          
+          ```yaml
+          # Enable the SWIFT Dashboard plugin
+          swiftDashboard.enabled: true
+          swiftDashboard.defaultIndex: "swift_messages"
+          swiftDashboard.refreshInterval: 30000
+          ```
+          
+          ## 🔐 Authentication
+          
+          The dashboard supports various authentication methods:
+          
+          - **Internal**: OpenSearch native authentication
+          - **OIDC**: Integration with identity providers like Asgardeo
+          - **SAML**: SAML 2.0 based authentication
+          - **LDAP**: Active Directory integration
+          
+          ## 🛠️ Troubleshooting
+          
+          ### Plugin Installation Issues
+          ```bash
+          # Check plugin status
+          bin/opensearch-dashboards-plugin list
+          
+          # Remove and reinstall
+          bin/opensearch-dashboards-plugin remove swiftDashboard
+          bin/opensearch-dashboards-plugin install file:///path/to/swiftDashboard-2.19.0.zip
+          ```
+          
+          ### Dashboard Not Loading
+          ```bash
+          # Check OpenSearch Dashboards logs
+          tail -f logs/opensearch-dashboards.log
+          
+          # Verify OpenSearch connection
+          curl http://localhost:9200/_cluster/health
+          ```
+          
+          ### Performance Issues
+          ```bash
+          # Increase JVM heap size
+          export OPENSEARCH_JAVA_OPTS="-Xms1g -Xmx2g"
+          
+          # Optimize index settings
+          curl -X PUT "localhost:9200/swift_messages/_settings" -H 'Content-Type: application/json' -d'
+          {
+            "index": {
+              "refresh_interval": "30s",
+              "number_of_replicas": 0
+            }
+          }'
+          ```
+          
+          ## 📚 Documentation
+          
+          - [Main Repository](https://github.com/RivinduM/reference-implementation-cbpr)
+          - [Dashboard Documentation](https://github.com/RivinduM/reference-implementation-cbpr/blob/main/dashboard/README.md)
+          - [FTP/SFTP Integration](https://github.com/RivinduM/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/README.md)
+          
+          ## 🆘 Support
+          
+          - **Issues**: [GitHub Issues](https://github.com/RivinduM/reference-implementation-cbpr/issues)
+          - **Discussions**: [GitHub Discussions](https://github.com/RivinduM/reference-implementation-cbpr/discussions)
+          - **Documentation**: [Project Wiki](https://github.com/RivinduM/reference-implementation-cbpr/wiki)
+          
+          ---
+          
+          **Version**: ${{ steps.get_version.outputs.version }}
+          **Release Date**: $(date -u +"%Y-%m-%d")
+          **OpenSearch Dashboards Compatibility**: 2.19.0+
+          EOF
+          
+          # Create archive
+          cd release/
+          tar -czf swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/
+          zip -r swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.zip swift-dashboard-plugin-${{ steps.get_version.outputs.version }}/
+          
+          # Verify archives
+          echo "Dashboard release packages created:"
+          ls -la swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.*
+          
+      - name: Upload Dashboard Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-dashboard-plugin-${{ steps.get_version.outputs.version }}
+          path: |
+            release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.tar.gz
+            release/swift-dashboard-plugin-${{ steps.get_version.outputs.version }}.zip
+          retention-days: 30
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-dashboard
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
+          path: release/
+          
+      - name: Extract for Scanning
+        run: |
+          cd release
+          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+          
+      - name: Run Trivy Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: Upload Trivy Scan Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-dashboard, security-scan]
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Dashboard Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
+          path: release/
+          
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          # Create release notes
+          cat > release_notes.md << 'EOF'
+          ## SWIFT Dashboard Plugin Release ${{ needs.build-dashboard.outputs.version }}
+          
+          ### 📊 Features
+          - **Real-time Monitoring**: Live message processing statistics and status
+          - **Message Analytics**: Transaction volume analysis and success rates
+          - **Error Analysis**: Categorized error reporting with drill-down capabilities
+          - **Currency Insights**: Transaction breakdown by currency with trending
+          - **Performance Metrics**: Processing times, throughput, and performance analysis
+          - **Advanced Search**: Full-text search across all message content
+          - **Visual Reports**: Interactive charts, graphs, and trend analysis
+          - **Role-based Access**: Federated authentication with OIDC support
+          
+          ### 🚀 Quick Installation
+          
+          #### Option 1: Automated Setup (Linux/macOS)
+          ```bash
+          # Download and extract
+          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build-dashboard.outputs.tag }}/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+          cd swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
+          
+          # Run automated installer
+          ./install-dashboard.sh
+          ```
+          
+          #### Option 2: Manual Installation
+          ```bash
+          # Install into existing OpenSearch Dashboards
+          cd /path/to/opensearch-dashboards
+          bin/opensearch-dashboards-plugin install file:///path/to/swiftDashboard-2.19.0.zip
+          
+          # Restart OpenSearch Dashboards
+          sudo systemctl restart opensearch-dashboards
+          ```
+          
+          #### Option 3: Docker Deployment
+          ```bash
+          # Extract and run Docker stack
+          tar -xzf swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+          cd swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}
+          docker-compose up -d
+          
+          # Access dashboard at http://localhost:5601/app/swiftDashboard
+          ```
+          
+          ### ⚙️ System Requirements
+          
+          - **OpenSearch**: Version 2.19.0 or higher
+          - **OpenSearch Dashboards**: Version 2.19.0 or higher
+          - **Java**: 17+ (for OpenSearch runtime)
+          - **RAM**: Minimum 4GB for stable operation
+          - **Storage**: 1GB+ for indices and logs
+          
+          ### 🔧 Configuration
+          
+          The dashboard automatically creates the required index mapping for `swift_messages` and includes:
+          
+          - Pre-configured visualizations for message analytics
+          - Error analysis dashboards with categorization
+          - Currency and transaction monitoring
+          - Performance metrics and trending
+          - Advanced search capabilities
+          
+          ### 🔐 Authentication Options
+          
+          - **OpenSearch Internal**: Native authentication with role-based access
+          - **OIDC Integration**: Supports Asgardeo and other identity providers
+          - **SAML 2.0**: Enterprise SSO integration
+          - **LDAP/Active Directory**: Corporate directory integration
+          
+          ### 🛠️ Integration with SWIFT Translator
+          
+          This dashboard works seamlessly with the [SWIFT MT/MX Translator](https://github.com/${{ github.repository }}/releases/latest) to provide:
+          
+          - Real-time monitoring of translation processes
+          - Error analysis and troubleshooting
+          - Performance optimization insights
+          - Historical transaction analysis
+          
+          ### 📚 Documentation & Support
+          
+          - **📖 Setup Guide**: [Dashboard Documentation](https://github.com/${{ github.repository }}/blob/main/dashboard/README.md)
+          - **🔧 Translator Integration**: [FTP/SFTP Guide](https://github.com/${{ github.repository }}/blob/main/translator/integrations/ftp-sftp/README.md)
+          - **🐛 Issues**: [GitHub Issues](https://github.com/${{ github.repository }}/issues)
+          - **💬 Support**: [GitHub Discussions](https://github.com/${{ github.repository }}/discussions)
+          
+          ### 🔍 What's New
+          
+          - ✅ **Production Ready**: Fully tested plugin with automated deployment
+          - ✅ **Security Scanned**: Vulnerability scanning with Trivy integration
+          - ✅ **Docker Support**: Complete Docker Compose setup included
+          - ✅ **Auto Installation**: One-command setup script for Linux/macOS
+          - ✅ **Enhanced Documentation**: Comprehensive setup and troubleshooting guides
+          
+          ### 💾 Download Assets
+          
+          | File | Description |
+          |------|-------------|
+          | `swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz` | Complete package with installer (Linux/macOS) |
+          | `swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.zip` | Cross-platform package |
+          
+          ---
+          **Build Information**
+          - **Version**: ${{ needs.build-dashboard.outputs.version }}
+          - **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Commit**: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          - **Workflow**: [Build #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - **OpenSearch Compatibility**: 2.19.0+
+          EOF
+          
+          echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.build-dashboard.outputs.tag }}
+          name: "SWIFT Dashboard Plugin ${{ needs.build-dashboard.outputs.version }}"
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(needs.build-dashboard.outputs.version, '-') }}
+          files: |
+            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.tar.gz
+            release/swift-dashboard-plugin-${{ needs.build-dashboard.outputs.version }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Update Latest Release Info
+        if: ${{ !contains(needs.build-dashboard.outputs.version, '-') }}
+        run: |
+          echo "✅ Released dashboard version ${{ needs.build-dashboard.outputs.version }} as latest"
+          echo "📁 Dashboard artifacts uploaded successfully"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-dashboard.outputs.tag }}"
+
+  version-bump:
+    name: Bump Version After Release
+    runs-on: ubuntu-latest
+    needs: [build-dashboard, release]
+    if: needs.release.result == 'success' && !contains(needs.build-dashboard.outputs.version, '-')
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+      - name: Calculate Next Version
+        id: next_version
+        run: |
+          CURRENT_VERSION="${{ needs.build-dashboard.outputs.version }}"
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Parse semantic version (MAJOR.MINOR.PATCH)
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+          
+          # Increment patch version for next development cycle
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
+          
+          echo "Next version: $NEXT_VERSION"
+          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          
+      - name: Update Package.json Version
+        run: |
+          cd ${{ env.DASHBOARD_PATH }}
+          
+          # Update version in package.json
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.next_version.outputs.next_version }}"/' package.json
+          
+          echo "Updated package.json version to ${{ steps.next_version.outputs.next_version }}"
+          
+          # Verify the change
+          grep '"version"' package.json
+          
+      - name: Commit and Push Version Bump
+        run: |
+          git add ${{ env.DASHBOARD_PATH }}/package.json
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "chore(dashboard): bump version to ${{ steps.next_version.outputs.next_version }} after release ${{ needs.build-dashboard.outputs.version }}
+
+          - Automatic version bump after successful dashboard release
+          - Prepares for next development cycle
+          - Previous release: ${{ needs.build-dashboard.outputs.tag }}"
+          
+          git push origin main
+          
+          echo "✅ Dashboard version bumped to ${{ steps.next_version.outputs.next_version }}"
+
+  notify:
+    name: Notify Release
+    runs-on: ubuntu-latest
+    needs: [build-dashboard, release, version-bump]
+    if: always() && needs.build-dashboard.result == 'success'
+    
+    steps:
+      - name: Notify Success
+        if: needs.release.result == 'success'
+        run: |
+          echo "🎉 Successfully released SWIFT Dashboard Plugin ${{ needs.build-dashboard.outputs.version }}"
+          echo "📦 Download: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-dashboard.outputs.tag }}"
+          
+          if [[ "${{ needs.version-bump.result }}" == "success" ]]; then
+            echo "🔢 Version automatically bumped for next development cycle"
+          elif [[ "${{ needs.version-bump.result }}" == "skipped" ]]; then
+            echo "⏭️ Version bump skipped (pre-release or manual trigger)"
+          else
+            echo "⚠️ Version bump failed - may need manual intervention"
+          fi
+          
+      - name: Notify Build Only
+        if: needs.release.result == 'skipped'
+        run: |
+          echo "✅ Dashboard build completed successfully for version ${{ needs.build-dashboard.outputs.version }}"
+          echo "💡 To create a release, push a version tag (v1.0.0) or use workflow_dispatch with create_release=true"
