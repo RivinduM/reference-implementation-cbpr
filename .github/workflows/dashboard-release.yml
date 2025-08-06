@@ -158,15 +158,21 @@ jobs:
           
           # Check if yarn.lock was updated during build and copy it back
           cd $GITHUB_WORKSPACE
-          if ! cmp -s ${{ env.DASHBOARD_PATH }}/yarn.lock OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock; then
-            echo "yarn.lock was updated during build - copying back to source"
-            cp OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock ${{ env.DASHBOARD_PATH }}/yarn.lock
-            echo "yarn_lock_updated=true" >> $GITHUB_OUTPUT
-            echo "YARN_LOCK_UPDATED=true" >> $GITHUB_ENV
-          else
-            echo "yarn.lock unchanged"
+          echo "Checking yarn.lock status..."
+          
+          # Always copy the yarn.lock back since we did a fresh install
+          cp OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock ${{ env.DASHBOARD_PATH }}/yarn.lock
+          echo "yarn.lock copied back to source directory"
+          
+          # Check if there are any changes compared to git
+          if git diff --quiet ${{ env.DASHBOARD_PATH }}/yarn.lock; then
+            echo "yarn.lock unchanged from git version"
             echo "yarn_lock_updated=false" >> $GITHUB_OUTPUT
             echo "YARN_LOCK_UPDATED=false" >> $GITHUB_ENV
+          else
+            echo "yarn.lock was updated during build process"
+            echo "yarn_lock_updated=true" >> $GITHUB_OUTPUT
+            echo "YARN_LOCK_UPDATED=true" >> $GITHUB_ENV
           fi
 
       - name: Upload Dashboard Artifacts
@@ -371,11 +377,17 @@ jobs:
           git add ${{ env.DASHBOARD_PATH }}/opensearch_dashboards.json
           [[ -f "${{ env.DASHBOARD_PATH }}/package.json" ]] && git add ${{ env.DASHBOARD_PATH }}/package.json || true
           
-          # Add yarn.lock if it was updated during build
+          # Check for yarn.lock changes and add if updated
           if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
+            echo "Adding updated yarn.lock to commit"
             git add ${{ env.DASHBOARD_PATH }}/yarn.lock
-            echo "Including updated yarn.lock in commit"
+          else
+            echo "yarn.lock not updated, skipping"
           fi
+          
+          # Show what will be committed
+          echo "Files to be committed:"
+          git diff --name-only --staged
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then
