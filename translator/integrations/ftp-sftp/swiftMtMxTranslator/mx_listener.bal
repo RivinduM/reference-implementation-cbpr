@@ -20,6 +20,7 @@ import ballerina/io;
 import ballerina/log;
 import ballerinax/financial.iso20022ToSwiftmt as mxToMt;
 import ballerinax/financial.swift.mt as swiftmt;
+import ballerina/time;
 
 // MT->MX Translator service
 service on mxFileListener {
@@ -57,7 +58,10 @@ service on mxFileListener {
     }
 
     function init() {
-        log:Error? outputFile = log:setOutputFile(log.ballerinaLogFilePath, log:APPEND);
+        time:Utc utc = time:utcNow();
+        string date = time:utcToString(utc).substring(0, 9);
+        string filePath = log.ballerinaLogFilePath + "ballerina" + date + ".log";
+        log:Error? outputFile = log:setOutputFile(filePath, log:APPEND);
         if outputFile is log:Error {
             log:printWarn(string `[Listner - ${mxMtListenerName}] Failed to set the output file for ballerina log.`);
         }

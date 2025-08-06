@@ -85,9 +85,9 @@ format="json"
 
 [log]
 # Path to the dashboard log file
-dashboardLogFilePath = "/Users/rivindumadushan/WIP/PanAsia/swiftTranslator/logs/dashboard.log"  
+dashboardLogFilePath = "/swiftTranslator/logs/"
 # Path to the Ballerina log file
-ballerinaLogFilePath = "/Users/rivindumadushan/WIP/PanAsia/swiftTranslator/logs/ballerina.log"
+ballerinaLogFilePath = "/swiftTranslator/logs/"
 
 
 [translator]

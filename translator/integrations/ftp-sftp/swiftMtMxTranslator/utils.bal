@@ -151,7 +151,9 @@ function appendToDashboardLogs(string listenerName, string orgnlMessage, string 
 
         // Write to file
         io:FileWriteOption option = OPTION_APPEND;
-        string filePath = log.dashboardLogFilePath;
+        time:Utc utc = time:utcNow();
+        string date = time:utcToString(utc).substring(0, 9);
+        string filePath = log.dashboardLogFilePath + "dashboard" + date + ".log";
         io:Error? fileWriteString = io:fileWriteString(filePath, jsonLogString, option);
         if fileWriteString is io:Error {
             handleLogFailure(listenerName, msgId, fileWriteString);
