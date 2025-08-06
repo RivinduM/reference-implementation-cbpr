@@ -453,9 +453,7 @@ jobs:
           🤖 *This PR was automatically created by the [translator release workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*" \
             --head "${{ steps.create_branch.outputs.branch_name }}" \
             --base "main" \
-            --label "automated" \
-            --label "version-bump" \
-            --label "translator"
+            --label "automated"
           
           echo "✅ Pull request created for version bump"
 
