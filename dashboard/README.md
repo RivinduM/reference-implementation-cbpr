@@ -24,7 +24,7 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
 
 ```bash
 # Quick setup (Coming Soon - Plugin will be included in releases)
-# 1. Download OpenSearch + Dashboards
+# 1. Download OpenSearch + Dashboards and Fluent-bit
 # 2. Extract dashboard plugin from release
 # 3. Install plugin
 # 4. Configure and run
@@ -208,6 +208,211 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
    Once installed, launch OpenSearch Dashboards. Your plugin should appear on the left-hand panel.
 
    ![HomePage.png](images/HomePage.png)
+
+8. **Configure Fluent Bit for Log Ingestion**
+
+   Fluent Bit is used to collect and forward logs from the SWIFT translator services to OpenSearch for dashboard analytics.
+
+   **Download and Install Fluent Bit:**
+   ```bash
+   # Linux (Ubuntu/Debian)
+   curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh
+   
+   # Or download from: https://fluentbit.io/download/
+   # Extract and install according to your platform
+   ```
+   
+   **Create Fluent Bit Parsers Configuration (`parsers.conf`):**
+   ```ini
+   [PARSER]
+       Name        docker
+       Format      json
+       Time_Key    time
+       Time_Format %Y-%m-%dT%H:%M:%S %z
+
+   [PARSER]
+       Name        ballerina_json_parser
+       Format      json
+       Time_Key    time                # The field in your JSON containing the timestamp
+       Time_Format %Y-%m-%dT%H:%M:%S.%L%z # The format of that timestamp string
+       Time_Keep   On                  # Keep the original 'time' field
+   
+   [PARSER]
+       Name   json
+       Format json
+       Time_Key time
+       Time_Format %d/%b/%Y:%H:%M:%S %z
+   ```
+
+   **Create Fluent Bit Configuration (`fluent-bit.conf`):**
+   ```ini
+   [SERVICE]
+       flush        1
+       daemon       Off
+       log_level    info
+       parsers_file parsers.conf <path to parsers.conf>
+       plugins_file /usr/local/Cellar/fluent-bit/4.0.3/etc/fluent-bit/plugins.conf <path to plugins.conf>
+       http_server  Off
+       http_listen  0.0.0.0
+       http_port    2020
+       storage.metrics on
+
+   [INPUT]
+       Name             tail
+       Tag              mtmx
+       Path             /logs/dashboard*.log <path to dashboard logs>
+       Parser           json
+       Refresh_Interval 1
+       exit_on_eof      off
+
+   [OUTPUT]
+      Name            opensearch
+      Match           mtmx
+      Host            localhost
+      Port            9200
+      HTTP_User       admin <opensearch username>
+      HTTP_Passwd     Pass@123@pass <opensearch password>
+      Index           translated_log
+      Suppress_Type_Name On
+      Logstash_Format Off
+      Time_Key        @timestamp
+      Generate_ID     On
+      tls             Off
+      tls.verify      Off
+   
+   [INPUT]
+      Name             tail
+      Tag              logs
+      Path             /logs/ballerina*.log <path to ballerina logs>
+      Parser           ballerina_json_parser
+      Refresh_Interval 1
+      exit_on_eof      off
+   
+   [OUTPUT]
+      Name            opensearch
+      Match           logs
+      Host            localhost
+      Port            9200
+      HTTP_User       admin <opensearch username>
+      HTTP_Passwd     Pass@123@pass <opensearch password>
+      Index           ballerina_log
+      Suppress_Type_Name On
+      Logstash_Format Off
+      Time_Key        time
+      Generate_ID     On
+      tls             Off
+      tls.verify      Off
+   ```
+
+   **Start Fluent Bit:**
+   ```bash
+   # Start Fluent Bit with configuration
+   fluent-bit -c /path/to/fluent-bit.conf
+
+   # Or as a service (systemd)
+   sudo systemctl start fluent-bit
+   sudo systemctl enable fluent-bit
+   ```
+
+   **Verify Log Ingestion:**
+   ```bash
+   # Check Fluent Bit metrics
+   curl http://localhost:2020/api/v1/metrics
+
+   # Check OpenSearch indices
+   curl -X GET "localhost:9200/_cat/indices/swift-*?v&s=index"
+
+   # Sample query to verify logs are being indexed
+   curl -X GET "localhost:9200/swift-logs/_search?pretty" \
+        -H 'Content-Type: application/json' \
+        -d '{"query": {"match_all": {}}, "size": 5}'
+   ```
+
+   **Create Index Templates (Recommended):**
+
+   Set up index templates for better log management:
+
+   ```bash
+   # Create template for translator logs
+   curl -X PUT "localhost:9200/_index_template/swift-translator-logs" \
+        -H 'Content-Type: application/json' \
+        -d '{
+     "index_patterns": ["swift-translator-logs-*"],
+     "template": {
+       "settings": {
+         "number_of_shards": 1,
+         "number_of_replicas": 1,
+         "index.lifecycle.name": "swift-logs-policy",
+         "index.lifecycle.rollover_alias": "swift-translator-logs"
+       },
+       "mappings": {
+         "properties": {
+           "timestamp": {"type": "date"},
+           "level": {"type": "keyword"},
+           "message": {"type": "text"},
+           "service": {"type": "keyword"},
+           "environment": {"type": "keyword"},
+           "component": {"type": "keyword"},
+           "file_path": {"type": "keyword"}
+         }
+       }
+     }
+   }'
+   ```
+
+   **Index Lifecycle Management (Optional):**
+
+   Set up automatic log rotation and cleanup:
+
+   ```bash
+   # Create ILM policy for log retention
+   curl -X PUT "localhost:9200/_ilm/policy/swift-logs-policy" \
+        -H 'Content-Type: application/json' \
+        -d '{
+     "policy": {
+       "phases": {
+         "hot": {
+           "actions": {
+             "rollover": {
+               "max_size": "1GB",
+               "max_age": "1d"
+             }
+           }
+         },
+         "warm": {
+           "min_age": "7d",
+           "actions": {
+             "shrink": {
+               "number_of_shards": 1
+             }
+           }
+         },
+         "delete": {
+           "min_age": "30d"
+         }
+       }
+     }
+   }'
+   ```
+
+   **Troubleshooting Fluent Bit:**
+
+   Common issues and solutions:
+
+   ```bash
+   # Check Fluent Bit logs
+   tail -f /var/log/fluent-bit.log
+
+   # Test configuration
+   fluent-bit -c /path/to/fluent-bit.conf --dry-run
+
+   # Check file permissions
+   ls -la /path/to/swift/translator/logs/
+   # Ensure fluent-bit user can read log files
+
+   # Verify OpenSearch connectivity
+   curl -u admin:password https://localhost:9200/_cluster/health
+   ```
 
 ## 🔧 Build & Deploy (Advanced)
 
@@ -407,18 +612,18 @@ The dashboard supports OIDC-based authentication:
    
 9.  **Update OpenSearch Dashboards Configuration**
 
-   Navigate to **opensearch_dashboards.yml** and set the following configurations:
+      Navigate to **opensearch_dashboards.yml** and set the following configurations:
    
-    ```yaml
-   opensearch_security.auth.type: "openid"
-   opensearch_security.openid.header: "Authorization"
-   opensearch_security.openid.connect_url: "https://api.asgardeo.io/t/<org-name>/oauth2/token/.well-known/openid-configuration"
-   opensearch_security.openid.client_id: "client_id"
-   opensearch_security.openid.client_secret: "client_secret"
-   opensearch_security.openid.scope: "openid profile roles"
-   opensearch_security.openid.base_redirect_url: "http://localhost:5601"
-   opensearch_security.openid.logout_url: "https://api.asgardeo.io/t/<org-name>/oidc/logout"
-   ```
+      ```yaml
+      opensearch_security.auth.type: "openid"
+      opensearch_security.openid.header: "Authorization"
+      opensearch_security.openid.connect_url: "https://api.asgardeo.io/t/<org-name>/oauth2/token/.well-known/openid-configuration"
+      opensearch_security.openid.client_id: "client_id"
+      opensearch_security.openid.client_secret: "client_secret"
+      opensearch_security.openid.scope: "openid profile roles"
+      opensearch_security.openid.base_redirect_url: "http://localhost:5601"
+      opensearch_security.openid.logout_url: "https://api.asgardeo.io/t/<org-name>/oidc/logout"
+      ```
 
    > Make sure to replace placeholders with actual values from your Asgardeo app.
 
