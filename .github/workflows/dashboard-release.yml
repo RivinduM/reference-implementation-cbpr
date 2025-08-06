@@ -184,6 +184,14 @@ jobs:
             release/checksums.txt
           retention-days: 30
 
+      - name: Upload yarn.lock if updated
+        if: steps.prepare_artifacts.outputs.yarn_lock_updated == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-yarn-lock-${{ steps.get_version.outputs.version }}
+          path: ${{ env.DASHBOARD_PATH }}/yarn.lock
+          retention-days: 30
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -317,6 +325,25 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+
+      - name: Download updated yarn.lock if available
+        if: needs.build-dashboard.outputs.yarn_lock_updated == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-yarn-lock-${{ needs.build-dashboard.outputs.version }}
+          path: downloaded-yarn-lock/
+        continue-on-error: true
+
+      - name: Copy updated yarn.lock to workspace
+        if: needs.build-dashboard.outputs.yarn_lock_updated == 'true'
+        run: |
+          if [[ -f "downloaded-yarn-lock/yarn.lock" ]]; then
+            echo "Copying updated yarn.lock to workspace"
+            cp downloaded-yarn-lock/yarn.lock ${{ env.DASHBOARD_PATH }}/yarn.lock
+            echo "yarn.lock copied successfully"
+          else
+            echo "Warning: Updated yarn.lock not found in artifacts"
+          fi
           
       - name: Calculate Next Version
         id: next_version
