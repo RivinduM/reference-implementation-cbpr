@@ -30,6 +30,7 @@ jobs:
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       tag: ${{ steps.get_version.outputs.tag }}
+      yarn_lock_updated: ${{ steps.prepare_artifacts.outputs.yarn_lock_updated }}
     
     steps:
       - name: Checkout Repository
@@ -133,6 +134,7 @@ jobs:
           [[ -f "package.json" ]] && grep '"version"' package.json || true
           
       - name: Prepare Release Artifacts
+        id: prepare_artifacts
         run: |
           # Copy the built plugin to release directory
           mkdir -p release
@@ -154,12 +156,16 @@ jobs:
             exit 1
           fi
           
-          # Check if yarn.lock was updated during build
-          if ! cmp -s $GITHUB_WORKSPACE/${{ env.DASHBOARD_PATH }}/yarn.lock OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock; then
-            echo "yarn.lock was updated during build - will be committed"
+          # Check if yarn.lock was updated during build and copy it back
+          cd $GITHUB_WORKSPACE
+          if ! cmp -s ${{ env.DASHBOARD_PATH }}/yarn.lock OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock; then
+            echo "yarn.lock was updated during build - copying back to source"
+            cp OpenSearch-Dashboards/plugins/swift_dashboard/yarn.lock ${{ env.DASHBOARD_PATH }}/yarn.lock
+            echo "yarn_lock_updated=true" >> $GITHUB_OUTPUT
             echo "YARN_LOCK_UPDATED=true" >> $GITHUB_ENV
           else
             echo "yarn.lock unchanged"
+            echo "yarn_lock_updated=false" >> $GITHUB_OUTPUT
             echo "YARN_LOCK_UPDATED=false" >> $GITHUB_ENV
           fi
 
@@ -366,7 +372,7 @@ jobs:
           [[ -f "${{ env.DASHBOARD_PATH }}/package.json" ]] && git add ${{ env.DASHBOARD_PATH }}/package.json || true
           
           # Add yarn.lock if it was updated during build
-          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+          if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
             git add ${{ env.DASHBOARD_PATH }}/yarn.lock
             echo "Including updated yarn.lock in commit"
           fi
@@ -385,7 +391,7 @@ jobs:
           - Previous release: ${{ needs.build-dashboard.outputs.tag }}
           - Updated opensearch_dashboards.json and package.json versions"
           
-          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+          if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
             COMMIT_MSG="$COMMIT_MSG
           - Updated yarn.lock with resolved dependencies"
           fi
@@ -407,7 +413,7 @@ jobs:
         run: |
           # Prepare PR body with yarn.lock info if applicable
           YARN_LOCK_INFO=""
-          if [[ "${{ env.YARN_LOCK_UPDATED }}" == "true" ]]; then
+          if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
             YARN_LOCK_INFO="
           - Updated \`yarn.lock\` with resolved dependencies from build process"
           fi
