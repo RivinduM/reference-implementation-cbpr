@@ -308,26 +308,6 @@ jobs:
           - Real-time message monitoring and analytics
           - Comprehensive error handling and logging
           
-          ### 📦 Installation
-          
-          **Quick Install (Linux):**
-          ```bash
-          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.build.outputs.tag }}/swift-mt-mx-translator-${{ needs.build.outputs.version }}.tar.gz
-          tar -xzf swift-mt-mx-translator-${{ needs.build.outputs.version }}.tar.gz
-          cd swift-mt-mx-translator-${{ needs.build.outputs.version }}
-          sudo ./install.sh
-          ```
-          
-          **Manual Install:**
-          - Download the `.zip` or `.tar.gz` file
-          - Extract and run: `java -jar swiftMtMxTranslator.jar`
-          - Configure `Config.toml` with your settings
-          
-          ### ⚙️ Requirements
-          - Java 17+
-          - FTP/SFTP server access
-          - OpenSearch (optional, for analytics)
-          
           ### 🔗 Links
           - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
           - [FTP/SFTP Integration Guide](https://github.com/${{ github.repository }}/blob/main/translator/integrations/ftp-sftp/README.md)
@@ -403,7 +383,12 @@ jobs:
           BRANCH_NAME="chore/bump-translator-version-${{ steps.next_version.outputs.next_version }}"
           echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           
-          # Create and switch to new branch
+          # Fetch latest changes to avoid conflicts
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          
+          # Create and switch to new branch from latest main
           git checkout -b "${BRANCH_NAME}"
           echo "Created branch: ${BRANCH_NAME}"
           
@@ -437,7 +422,8 @@ jobs:
           
           This PR was automatically created by the release workflow."
           
-          git push origin "${{ steps.create_branch.outputs.branch_name }}"
+          # Force push to handle any conflicts (since this is a new branch)
+          git push origin "${{ steps.create_branch.outputs.branch_name }}" --force
           
           echo "✅ Version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
           

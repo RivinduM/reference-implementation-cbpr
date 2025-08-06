@@ -331,7 +331,12 @@ jobs:
           BRANCH_NAME="chore/bump-dashboard-version-${{ steps.next_version.outputs.next_version }}"
           echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           
-          # Create and switch to new branch
+          # Fetch latest changes to avoid conflicts
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          
+          # Create and switch to new branch from latest main
           git checkout -b "${BRANCH_NAME}"
           echo "Created branch: ${BRANCH_NAME}"
           
@@ -390,7 +395,9 @@ jobs:
           This PR was automatically created by the release workflow."
           
           git commit -m "$COMMIT_MSG"
-          git push origin "${{ steps.create_branch.outputs.branch_name }}"
+          
+          # Force push to handle any conflicts (since this is a new branch)
+          git push origin "${{ steps.create_branch.outputs.branch_name }}" --force
           
           echo "✅ Dashboard version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
           
