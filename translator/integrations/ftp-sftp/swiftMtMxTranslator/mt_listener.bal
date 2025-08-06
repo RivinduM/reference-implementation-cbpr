@@ -56,12 +56,15 @@ service on mtFileListener {
     function init() {
         time:Utc utc = time:utcNow();
         string date = time:utcToString(utc).substring(0, 9);
-        string filePath = log.ballerinaLogFilePath + "ballerina" + date + ".log";
+        string filePath = log.ballerinaLogFilePath + "/ballerina" + date + ".log";
         log:Error? outputFile = log:setOutputFile(filePath, log:APPEND);
         if outputFile is log:Error {
             log:printWarn(string `[Listner - ${mtMxListenerName}] Failed to set the output file for ballerina log.`);
         }
         log:printInfo(string `[Listner - ${mtMxListenerName}] Listener started.`);
+        
+        // Initialize log rotator for daily log rotation
+        initLogRotator();
     }
 }
 
