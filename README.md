@@ -19,13 +19,13 @@ A comprehensive reference implementation for SWIFT MT ↔ MX message translation
 
 **🚀 Ready to use? Download the latest release:**
 
-[![Download Latest Release](https://img.shields.io/github/v/release/RivinduM/reference-implementation-cbpr?label=Download%20Latest&style=for-the-badge&color=success)](https://github.com/RivinduM/reference-implementation-cbpr/releases/latest)
+[![Download Latest Release](https://img.shields.io/github/v/release/wso2/reference-implementation-cbpr?label=Download%20Latest&style=for-the-badge&color=success)](https://github.com/wso2/reference-implementation-cbpr/releases/latest)
 
 **💡 Just need Java 17+ to run!** No need to clone the repository or install development tools.
 
 ```bash
 # One-command installation:
-wget https://github.com/RivinduM/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
+wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
 ```
 
 **📊 Want the dashboard?** Set up [OpenSearch](https://opensearch.org/downloads/) and follow our [Dashboard Guide](dashboard/swift_dashboard/README.md).
@@ -94,7 +94,7 @@ wget https://github.com/RivinduM/reference-implementation-cbpr/releases/latest/d
 
 **Quick Installation:**
 
-Visit the [Releases Page](https://github.com/RivinduM/reference-implementation-cbpr/releases) to:
+Visit the [Releases Page](https://github.com/wso2/reference-implementation-cbpr/releases) to:
 - 📦 Download specific versions
 - 📋 View release notes and changelogs
 ```bash

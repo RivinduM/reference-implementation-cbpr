@@ -18,7 +18,7 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
 
 **🚀 Production Ready? Use the pre-built dashboard plugin:**
 
-[![Download Dashboard Plugin](https://img.shields.io/github/v/release/RivinduM/reference-implementation-cbpr?label=Download%20Dashboard%20Plugin&style=for-the-badge&color=success)](https://github.com/RivinduM/reference-implementation-cbpr/releases/latest)
+[![Download Dashboard Plugin](https://img.shields.io/github/v/release/wso2/reference-implementation-cbpr?label=Download%20Dashboard%20Plugin&style=for-the-badge&color=success)](https://github.com/wso2/reference-implementation-cbpr/releases/latest)
 
 **💡 Only need OpenSearch 2.19.0+ and basic setup!**
 
@@ -232,7 +232,7 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
 2. **Clone Dashboard Plugin Source**
    ```bash
    cd plugins/
-   git clone https://github.com/RivinduM/reference-implementation-cbpr.git
+   git clone https://github.com/wso2/reference-implementation-cbpr.git
    cd reference-implementation-cbpr/dashboard/swift_dashboard/
    ```
 
