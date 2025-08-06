@@ -200,7 +200,7 @@ function postProcessMtMxMessage(xml message, string originalMessage, string logI
     log:printDebug(string `[Listner - ${mtMxListenerName}][${logId}] Post-processing message: ${message.toBalString()}`);
     http:Request clientRequest = new;
     clientRequest.setHeader("Content-Type", "application/json");
-    clientRequest.setPayload({"message": message.toString(), "originalMessage": originalMessage});
+    clientRequest.setPayload({"translatedMessage": message.toString(), "originalMessage": originalMessage});
 
     xml|error mtmxClientResponse = mtmxClient->post(MT_MX_POST_PROCESS_CONTEXT_PATH, clientRequest);
 
