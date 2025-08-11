@@ -55,7 +55,7 @@ service on mtFileListener {
 
     function init() {
         time:Utc utc = time:utcNow();
-        string date = time:utcToString(utc).substring(0, 9);
+        string date = time:utcToString(utc).substring(0, 10);
         string filePath = log.ballerinaLogFilePath + "/ballerina" + date + ".log";
         log:Error? outputFile = log:setOutputFile(filePath, log:APPEND);
         if outputFile is log:Error {
