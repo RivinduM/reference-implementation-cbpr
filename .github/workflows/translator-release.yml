@@ -124,16 +124,7 @@ jobs:
           
           ## Configuration
           
-          Copy `Config.sample.toml` to `Config.toml` and update:
-          
-          ```toml
-          [ftp_sftp_listener]
-          host = "localhost"
-          port = 21
-          username = "your_username" 
-          password = "your_password"
-          protocol = "FTP"  # or "SFTP"
-          ```
+          Copy `Config.sample.toml` to `Config.toml` and update the configurations accordingly.
           
           ## Support
           

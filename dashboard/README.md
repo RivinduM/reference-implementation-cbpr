@@ -202,8 +202,17 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
    # Download the latest release: 
    https://github.com/wso2/reference-implementation-cbpr/releases/latest)
    
+   # Copy the plugin to docker container or local directory:
+   # Local:
+   cp swift-dashboard-plugin.1.0.0.zip /temp/swift-dashboard.zip
+   # Docker:
+   docker cp swift-dashboard-1.0.4.zip opensearch-dashboards:/temp/swift-dashboard.zip
+   
    # Install the plugin:
-   bin/opensearch-dashboards-plugin install file:///path/to/swift-dashboard-plugin.zip
+   # Local:
+   bin/opensearch-dashboards-plugin install file:///temp/swift-dashboard.zip
+   # Docker:
+    docker exec -it opensearch-dashboards /usr/share/opensearch-dashboards/bin/opensearch-dashboards-plugin install file:///temp/swift-dashboard.zip
    ```
    Once installed, launch OpenSearch Dashboards. Your plugin should appear on the left-hand panel.
 

@@ -42,7 +42,7 @@ service on mxFileListener {
             // performs a read operation to read the lines as an array.
             string inMsg = check io:fileReadString(string `/tmp/swiftTranslator/${addedFile.name}`);
 
-            log:printInfo(string `[Listner - ${mxMtListenerName}][${logId}] Incoming message: ${inMsg}`);
+            log:printDebug(string `[Listner - ${mxMtListenerName}][${logId}] Incoming message: ${inMsg}`);
 
             // Identify if the incoming message is an ISO20022 message.
             if mtRegex.isFullMatch(inMsg) {
