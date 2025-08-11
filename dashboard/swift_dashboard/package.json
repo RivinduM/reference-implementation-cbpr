@@ -1,6 +1,6 @@
 {
   "name": "swift-dashboard",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "SWIFT Dashboard for OpenSearch",
   "main": "target/public",
   "scripts": {
