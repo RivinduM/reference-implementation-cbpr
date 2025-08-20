@@ -52,7 +52,7 @@ File-based integration for SWIFT MT ↔ MX message translation using FTP/SFTP pr
 1. **Download and extract the release**
    ```bash
    # Download latest release
-   wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
+   wget https://github.com/wso2/reference-implementation-cbpr/releases/download/translator-v1.0.1/swift-mt-mx-translator-1.0.1.tar.gz
    
    # Extract
    tar -xzf swift-mt-mx-translator-*.tar.gz

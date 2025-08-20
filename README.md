@@ -25,7 +25,7 @@ A comprehensive reference implementation for SWIFT MT ↔ MX message translation
 
 ```bash
 # One-command installation:
-wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
+wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.1.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
 ```
 
 **📊 Want the dashboard?** Set up [OpenSearch](https://opensearch.org/downloads/) and follow our [Dashboard Guide](dashboard/README.md).
@@ -99,7 +99,7 @@ Visit the [Releases Page](https://github.com/wso2/reference-implementation-cbpr/
 - 📋 View release notes and changelogs
 ```bash
 # Download latest release
-wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
+wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.1.tar.gz
 
 # Extract and install
 tar -xzf swift-mt-mx-translator-*.tar.gz
