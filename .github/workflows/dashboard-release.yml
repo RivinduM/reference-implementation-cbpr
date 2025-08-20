@@ -379,7 +379,7 @@ jobs:
           git checkout -b "${BRANCH_NAME}"
           echo "Created branch: ${BRANCH_NAME}"
           
-      - name: Update Package.json Version
+      - name: Update Package.json Version and README Links
         run: |
           cd ${{ env.DASHBOARD_PATH }}
           
@@ -398,11 +398,53 @@ jobs:
           grep -E '"version"|"opensearchDashboardsVersion"' opensearch_dashboards.json
           [[ -f "package.json" ]] && echo "Updated package.json:" && grep -A5 -B5 '"version"' package.json || true
           
-      - name: Commit and Push Version Bump
+          # Now update README files with current release info
+          cd $GITHUB_WORKSPACE
+          echo "🔗 Updating README links for dashboard release ${{ needs.build-dashboard.outputs.tag }}"
+          
+          # Update the static badge version for dashboard in main README
+          sed -i "s|Download%20Dashboard-v[0-9]\+\.[0-9]\+\.[0-9]\+-blue|Download%20Dashboard-v${{ needs.build-dashboard.outputs.version }}-blue|g" README.md
+          
+          # Update the badge URL to point to specific release in main README
+          sed -i "s|releases?q=OpenSearch%2BDashboards%2BPlugin|releases/tag/${{ needs.build-dashboard.outputs.tag }}|g" README.md
+          
+          # Update download command in main README to use specific release
+          sed -i "s|opensearch-dashboards-cbpr-plugin-[0-9]\+\.[0-9]\+\.[0-9]\+\.zip|opensearch-dashboards-cbpr-plugin-${{ needs.build-dashboard.outputs.version }}.zip|g" README.md
+          
+          # Update dashboard-specific README if it exists
+          if [[ -f "dashboard/README.md" ]]; then
+            echo "📝 Updating dashboard-specific README"
+            
+            # Update the static badge version in dashboard README
+            sed -i "s|Download%20Dashboard-v[0-9]\+\.[0-9]\+\.[0-9]\+-blue|Download%20Dashboard-v${{ needs.build-dashboard.outputs.version }}-blue|g" dashboard/README.md
+            
+            # Update the static badge URL to point to specific release tag
+            sed -i "s|releases/tag/dashboard-v[0-9]\+\.[0-9]\+\.[0-9]\+|releases/tag/${{ needs.build-dashboard.outputs.tag }}|g" dashboard/README.md
+            
+            # Update hardcoded dashboard plugin versions in installation examples
+            sed -i "s|swift-dashboard-plugin\.[0-9]\+\.[0-9]\+\.[0-9]\+\.zip|swift-dashboard-plugin.${{ needs.build-dashboard.outputs.version }}.zip|g" dashboard/README.md
+            sed -i "s|swift-dashboard-[0-9]\+\.[0-9]\+\.[0-9]\+\.zip|swift-dashboard-${{ needs.build-dashboard.outputs.version }}.zip|g" dashboard/README.md
+            
+            # Update built plugin archive name
+            sed -i "s|swiftDashboard-[0-9]\+\.[0-9]\+\.[0-9]\+\.zip|swiftDashboard-${{ needs.build-dashboard.outputs.version }}.zip|g" dashboard/README.md
+            
+            # Update any specific download references in dashboard README
+            sed -i "s|opensearch-dashboards-cbpr-plugin-[0-9]\+\.[0-9]\+\.[0-9]\+\.zip|opensearch-dashboards-cbpr-plugin-${{ needs.build-dashboard.outputs.version }}.zip|g" dashboard/README.md
+            
+            # Update releases/latest references to specific version
+            sed -i "s|releases/latest|releases/tag/${{ needs.build-dashboard.outputs.tag }}|g" dashboard/README.md
+          fi
+          
+          echo "✅ Version updates and README links updated"
+          
+      - name: Commit and Push Version Bump with README Updates
         run: |
           # Add plugin configuration files
           git add ${{ env.DASHBOARD_PATH }}/opensearch_dashboards.json
           [[ -f "${{ env.DASHBOARD_PATH }}/package.json" ]] && git add ${{ env.DASHBOARD_PATH }}/package.json || true
+          
+          # Add README files that were updated
+          git add README.md dashboard/README.md
           
           # Check for yarn.lock changes and add if updated
           if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
@@ -423,12 +465,13 @@ jobs:
           fi
           
           # Create commit message
-          COMMIT_MSG="chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }}
+          COMMIT_MSG="chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }} and update README
 
           - Automatic version bump after successful dashboard release ${{ needs.build-dashboard.outputs.version }}
+          - Updated opensearch_dashboards.json and package.json versions
+          - Updated README.md and dashboard/README.md with v${{ needs.build-dashboard.outputs.version }} download links
           - Prepares for next development cycle
-          - Previous release: ${{ needs.build-dashboard.outputs.tag }}
-          - Updated opensearch_dashboards.json and package.json versions"
+          - Previous release: ${{ needs.build-dashboard.outputs.tag }}"
           
           if [[ "${{ needs.build-dashboard.outputs.yarn_lock_updated }}" == "true" ]]; then
             COMMIT_MSG="$COMMIT_MSG
@@ -444,7 +487,7 @@ jobs:
           # Force push to handle any conflicts (since this is a new branch)
           git push origin "${{ steps.create_branch.outputs.branch_name }}" --force
           
-          echo "✅ Dashboard version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
+          echo "✅ Dashboard version bump and README updates committed to branch ${{ steps.create_branch.outputs.branch_name }}"
           
       - name: Create Pull Request
         env:
@@ -458,10 +501,10 @@ jobs:
           fi
           
           gh pr create \
-            --title "chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }}" \
-            --body "## 🔄 Automatic Version Bump
+            --title "chore: bump dashboard version to ${{ steps.next_version.outputs.next_version }} and update README" \
+            --body "## 🔄 Automatic Version Bump & README Update
 
-          This PR automatically bumps the dashboard version after successful release.
+          This PR automatically bumps the dashboard version and updates README files after successful release.
 
           **Release Information:**
           - Previous version: ${{ needs.build-dashboard.outputs.version }}
@@ -470,11 +513,13 @@ jobs:
           - Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-dashboard.outputs.tag }}
 
           **Changes:**
-          - Updated \`dashboard/swift_dashboard/opensearch_dashboards.json\` version
-          - Updated \`dashboard/swift_dashboard/package.json\` version${YARN_LOCK_INFO}
+          - Updated \`dashboard/swift_dashboard/opensearch_dashboards.json\` version to ${{ steps.next_version.outputs.next_version }}
+          - Updated \`dashboard/swift_dashboard/package.json\` version to ${{ steps.next_version.outputs.next_version }}${YARN_LOCK_INFO}
+          - Updated \`README.md\` dashboard badge and download links to v${{ needs.build-dashboard.outputs.version }}
+          - Updated \`dashboard/README.md\` with v${{ needs.build-dashboard.outputs.version }} download links
           - Prepares repository for next development cycle
 
-          **Auto-merge:** This PR can be safely merged as it only contains version updates and dependency locks.
+          **Auto-merge:** This PR can be safely merged as it only contains version updates, dependency locks, and documentation updates.
 
           ---
           🤖 *This PR was automatically created by the [dashboard release workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*" \
@@ -482,7 +527,7 @@ jobs:
             --base "main" \
             --label "automated"
           
-          echo "✅ Pull request created for dashboard version bump"
+          echo "✅ Pull request created for dashboard version bump and README updates"
 
   notify:
     name: Notify Release

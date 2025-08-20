@@ -18,7 +18,7 @@ A comprehensive OpenSearch-based dashboard for monitoring and analyzing SWIFT MT
 
 **🚀 Production Ready? Use the pre-built dashboard plugin:**
 
-[![Download Dashboard Plugin](https://img.shields.io/github/v/release/wso2/reference-implementation-cbpr?label=Download%20Dashboard%20Plugin&style=for-the-badge&color=success)](https://github.com/wso2/reference-implementation-cbpr/releases/latest)
+[![Download Dashboard Plugin](https://img.shields.io/badge/Download%20Dashboard-v1.0.0-blue?style=for-the-badge)](https://github.com/wso2/reference-implementation-cbpr/releases/tag/dashboard-v1.0.0)
 
 **💡 Only need OpenSearch 2.19.0+ and basic setup!**
 
