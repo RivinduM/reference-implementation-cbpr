@@ -16,7 +16,7 @@ File-based integration for SWIFT MT ↔ MX message translation using FTP/SFTP pr
 
 **🚀 Production Ready? Use the latest release:**
 
-[![Download FTP/SFTP Release](https://img.shields.io/badge/Download%20Translator-v1.0.0-success?style=for-the-badge)](https://github.com/wso2/reference-implementation-cbpr/releases/tag/translator-v1.0.0)
+[![Download FTP/SFTP Release](https://img.shields.io/badge/Download%20Translator-v1.0.0-success?style=for-the-badge)](https://github.com/rivindum/reference-implementation-cbpr/releases/tag/translator-v1.0.0)
 
 **💡 Only need Java 17+ and FTP/SFTP server access!**
 
@@ -52,7 +52,7 @@ File-based integration for SWIFT MT ↔ MX message translation using FTP/SFTP pr
 1. **Download and extract the release**
    ```bash
    # Download latest release
-   wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
+   wget https://github.com/rivindum/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
    
    # Extract
    tar -xzf swift-mt-mx-translator-*.tar.gz
@@ -69,7 +69,7 @@ File-based integration for SWIFT MT ↔ MX message translation using FTP/SFTP pr
 3. **Configure the application**
    ```bash
    # Create a configuration file and configure the setup.
-   Refer to the sample [Config.toml](https://github.com/wso2/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
+   Refer to the sample [Config.toml](https://github.com/rivindum/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
    ```
 
 4. **Run the translator**
@@ -89,14 +89,14 @@ File-based integration for SWIFT MT ↔ MX message translation using FTP/SFTP pr
 
 1. **Clone and navigate**
    ```bash
-   git clone https://github.com/wso2/reference-implementation-cbpr.git
+   git clone https://github.com/rivindum/reference-implementation-cbpr.git
    cd reference-implementation-cbpr/translator/integrations/ftp-sftp/swiftMtMxTranslator
    ```
 
 2. **Configure the application**
    ```bash
    # Create a configuration file and configure the setup.
-   Refer to the sample [Config.toml](https://github.com/wso2/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
+   Refer to the sample [Config.toml](https://github.com/rivindum/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
    ```
 
 3. **Create required directories on FTP server**

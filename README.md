@@ -19,15 +19,15 @@ A comprehensive reference implementation for SWIFT MT ↔ MX message translation
 
 **🚀 Ready to use? Download the latest release:**
 
-[![Download Translator](https://img.shields.io/badge/Download%20Translator-v1.0.0-success?style=for-the-badge)](https://github.com/wso2/reference-implementation-cbpr/releases?q=SWIFT+MT%2FMX+Translator)
+[![Download Translator](https://img.shields.io/badge/Download%20Translator-v1.0.0-success?style=for-the-badge)](https://github.com/rivindum/reference-implementation-cbpr/releases?q=SWIFT+MT%2FMX+Translator)
 
-[![Download Dashboard](https://img.shields.io/badge/Download%20Dashboard-v1.0.0-blue?style=for-the-badge)](https://github.com/wso2/reference-implementation-cbpr/releases?q=Dashboard+Plugin)
+[![Download Dashboard](https://img.shields.io/badge/Download%20Dashboard-v1.0.0-blue?style=for-the-badge)](https://github.com/rivindum/reference-implementation-cbpr/releases?q=Dashboard+Plugin)
 
 **💡 Just need Java 17+ to run!** No need to clone the repository or install development tools.
 
 ```bash
 # One-command installation:
-wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
+wget https://github.com/rivindum/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz && tar -xzf swift-mt-mx-translator-*.tar.gz && cd swift-mt-mx-translator-* && sudo ./install.sh
 ```
 
 **📊 Want the dashboard?** Set up [OpenSearch](https://opensearch.org/downloads/) and follow our [Dashboard Guide](dashboard/README.md).
@@ -96,12 +96,12 @@ wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/downl
 
 **Quick Installation:**
 
-Visit the [Releases Page](https://github.com/wso2/reference-implementation-cbpr/releases) to:
+Visit the [Releases Page](https://github.com/rivindum/reference-implementation-cbpr/releases) to:
 - 📦 Download specific versions
 - 📋 View release notes and changelogs
 ```bash
 # Download latest release
-wget https://github.com/wso2/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
+wget https://github.com/rivindum/reference-implementation-cbpr/releases/latest/download/swift-mt-mx-translator-1.0.0.tar.gz
 
 # Extract and install
 tar -xzf swift-mt-mx-translator-*.tar.gz
@@ -114,7 +114,7 @@ java -jar swiftMtMxTranslator.jar
 **Configuration:**
 ```bash
 # Create a configuration file and configure the setup.
-Refer to the sample [Config.toml](https://github.com/wso2/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
+Refer to the sample [Config.toml](https://github.com/rivindum/reference-implementation-cbpr/blob/main/translator/integrations/ftp-sftp/swiftMtMxTranslator/Config.toml) for details.
 ```
 
 ### Option 2: Development Setup (For Contributors)
@@ -130,7 +130,7 @@ Refer to the sample [Config.toml](https://github.com/wso2/reference-implementati
 
 1. **Clone the repository (for development only)**
    ```bash
-   git clone https://github.com/wso2/reference-implementation-cbpr.git
+   git clone https://github.com/rivindum/reference-implementation-cbpr.git
    cd reference-implementation-cbpr
    ```
 
