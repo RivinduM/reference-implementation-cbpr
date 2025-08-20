@@ -302,7 +302,7 @@ jobs:
           git checkout -b "${BRANCH_NAME}"
           echo "Created branch: ${BRANCH_NAME}"
           
-      - name: Update Ballerina.toml Version
+      - name: Update Ballerina.toml Version and README Links
         run: |
           cd ${{ env.PROJECT_PATH }}
           
@@ -314,9 +314,44 @@ jobs:
           # Verify the change
           grep "^version" Ballerina.toml
           
-      - name: Commit and Push Version Bump
+          # Now update README files with current release info
+          cd $GITHUB_WORKSPACE
+          echo "🔗 Updating README links for translator release ${{ needs.build.outputs.tag }}"
+          
+          # Update the static badge version for translator in main README
+          sed -i "s|Download%20Translator-v[0-9]\+\.[0-9]\+\.[0-9]\+-success|Download%20Translator-v${{ needs.build.outputs.version }}-success|g" README.md
+          
+          # Update the badge URL to point to specific release in main README
+          sed -i "s|releases?q=SWIFT+MT%2FMX+Translator|releases/tag/${{ needs.build.outputs.tag }}|g" README.md
+          
+          # Update download command in main README to use specific release
+          sed -i "s|swift-mt-mx-translator-[0-9]\+\.[0-9]\+\.[0-9]\+\.tar\.gz|swift-mt-mx-translator-${{ needs.build.outputs.version }}.tar.gz|g" README.md
+          
+          # Update translator-specific README if it exists
+          if [[ -f "translator/integrations/ftp-sftp/README.md" ]]; then
+            echo "📝 Updating translator-specific README"
+            
+            # Update the static badge version in translator README
+            sed -i "s|Download%20Translator-v[0-9]\+\.[0-9]\+\.[0-9]\+-success|Download%20Translator-v${{ needs.build.outputs.version }}-success|g" translator/integrations/ftp-sftp/README.md
+            
+            # Update the static badge URL to point to specific release tag
+            sed -i "s|releases/tag/translator-v[0-9]\+\.[0-9]\+\.[0-9]\+|releases/tag/${{ needs.build.outputs.tag }}|g" translator/integrations/ftp-sftp/README.md
+            
+            # Update hardcoded version in download command
+            sed -i "s|swift-mt-mx-translator-[0-9]\+\.[0-9]\+\.[0-9]\+\.tar\.gz|swift-mt-mx-translator-${{ needs.build.outputs.version }}.tar.gz|g" translator/integrations/ftp-sftp/README.md
+            
+            # Update /latest/ to specific release tag in download URLs
+            sed -i "s|releases/latest/download|releases/download/${{ needs.build.outputs.tag }}|g" translator/integrations/ftp-sftp/README.md
+          fi
+          
+          echo "✅ Version updates and README links updated"
+          
+      - name: Commit and Push Version Bump with README Updates
         run: |
           git add ${{ env.PROJECT_PATH }}/Ballerina.toml
+          
+          # Add README files that were updated
+          git add README.md translator/integrations/ftp-sftp/README.md
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then
@@ -324,9 +359,11 @@ jobs:
             exit 0
           fi
           
-          git commit -m "chore: bump translator version to ${{ steps.next_version.outputs.next_version }}
+          git commit -m "chore: bump translator version to ${{ steps.next_version.outputs.next_version }} and update README
 
           - Automatic version bump after successful release ${{ needs.build.outputs.version }}
+          - Updated Ballerina.toml version to ${{ steps.next_version.outputs.next_version }}
+          - Updated README.md and translator/README.md with v${{ needs.build.outputs.version }} download links
           - Prepares for next development cycle
           - Previous release: ${{ needs.build.outputs.tag }}
           
@@ -335,17 +372,17 @@ jobs:
           # Force push to handle any conflicts (since this is a new branch)
           git push origin "${{ steps.create_branch.outputs.branch_name }}" --force
           
-          echo "✅ Version bump committed to branch ${{ steps.create_branch.outputs.branch_name }}"
+          echo "✅ Version bump and README updates committed to branch ${{ steps.create_branch.outputs.branch_name }}"
           
       - name: Create Pull Request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr create \
-            --title "chore: bump translator version to ${{ steps.next_version.outputs.next_version }}" \
-            --body "## 🔄 Automatic Version Bump
+            --title "chore: bump translator version to ${{ steps.next_version.outputs.next_version }} and update README" \
+            --body "## 🔄 Automatic Version Bump & README Update
 
-          This PR automatically bumps the translator version after successful release.
+          This PR automatically bumps the translator version and updates README files after successful release.
 
           **Release Information:**
           - Previous version: ${{ needs.build.outputs.version }}
@@ -354,10 +391,12 @@ jobs:
           - Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build.outputs.tag }}
 
           **Changes:**
-          - Updated \`translator/integrations/ftp-sftp/swiftMtMxTranslator/Ballerina.toml\` version
+          - Updated \`translator/integrations/ftp-sftp/swiftMtMxTranslator/Ballerina.toml\` version to ${{ steps.next_version.outputs.next_version }}
+          - Updated \`README.md\` translator badge and download links to v${{ needs.build.outputs.version }}
+          - Updated \`translator/integrations/ftp-sftp/README.md\` with v${{ needs.build.outputs.version }} download links
           - Prepares repository for next development cycle
 
-          **Auto-merge:** This PR can be safely merged as it only contains version updates.
+          **Auto-merge:** This PR can be safely merged as it only contains version updates and documentation updates.
 
           ---
           🤖 *This PR was automatically created by the [translator release workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*" \
@@ -365,7 +404,7 @@ jobs:
             --base "main" \
             --label "automated"
           
-          echo "✅ Pull request created for version bump"
+          echo "✅ Pull request created for version bump and README updates"
 
   notify:
     name: Notify Release
