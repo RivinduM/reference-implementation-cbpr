@@ -290,7 +290,7 @@ jobs:
       - name: Create Version Bump Branch
         id: create_branch
         run: |
-          BRANCH_NAME="chore/bump-translator-version-${{ steps.next_version.outputs.next_version }}"
+          BRANCH_NAME="chore/translator-version-bump"
           echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
           
           # Fetch latest changes to avoid conflicts
@@ -298,9 +298,14 @@ jobs:
           git checkout main
           git pull origin main
           
+          # Check if branch already exists locally and delete it
+          if git show-ref --verify --quiet refs/heads/${BRANCH_NAME}; then
+            git branch -D ${BRANCH_NAME}
+          fi
+          
           # Create and switch to new branch from latest main
           git checkout -b "${BRANCH_NAME}"
-          echo "Created branch: ${BRANCH_NAME}"
+          echo "Created/reset branch: ${BRANCH_NAME}"
           
       - name: Update Ballerina.toml Version and README Links
         run: |
@@ -378,6 +383,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Check if PR already exists and close it
+          EXISTING_PR=$(gh pr list --head "${{ steps.create_branch.outputs.branch_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "Closing existing PR #${EXISTING_PR}"
+            gh pr close $EXISTING_PR --comment "Superseded by new release ${{ needs.build.outputs.tag }}"
+          fi
+          
           gh pr create \
             --title "chore: bump translator version to ${{ steps.next_version.outputs.next_version }} and update README" \
             --body "## 🔄 Automatic Version Bump & README Update
