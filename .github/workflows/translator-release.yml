@@ -18,6 +18,11 @@ on:
         required: false
         default: ''
         type: string
+      changelog:
+        description: 'Changelog for this release (supports markdown). Leave empty to auto-generate from commits.'
+        required: false
+        default: ''
+        type: string
 
 env:
   BALLERINA_VERSION: "2201.10.5"
@@ -220,94 +225,104 @@ jobs:
           
           echo "Generating changelog from ${PREVIOUS_TAG} to ${CURRENT_TAG}"
           
-          # Generate changelog with commits grouped by type
+          # Start changelog
           cat > changelog.md << 'EOF_HEADER'
           ## 📝 Changelog
           
           EOF_HEADER
           
-          # Get commits since last release, filtered by translator path
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
-          awk -F'|' '
-          BEGIN {
-            print "### ✨ Features"
-            features = 0
-          }
-          /^feat[\(:]/  { 
-            features++
-            sub(/^feat[\(:][^)]*[\)]?: */, "", $1)
-            printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
-            next
-          }
-          END {
-            if (features == 0) print "_No new features in this release_\n"
-          }
-          ' >> changelog.md
+          # Check if manual changelog is provided
+          if [[ -n "${{ github.event.inputs.changelog }}" ]]; then
+            echo "Using manually provided changelog"
+            echo "${{ github.event.inputs.changelog }}" >> changelog.md
+            COMMIT_COUNT="manual"
+          else
+            echo "Auto-generating changelog from commits"
+            
+            # Get commits since last release, filtered by translator path
+            git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
+            awk -F'|' '
+            BEGIN {
+              print "### ✨ Features"
+              features = 0
+            }
+            /^feat[\(:]/  { 
+              features++
+              sub(/^feat[\(:][^)]*[\)]?: */, "", $1)
+              printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
+              next
+            }
+            END {
+              if (features == 0) print "_No new features in this release_\n"
+            }
+            ' >> changelog.md
+            
+            echo "" >> changelog.md
+            
+            git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
+            awk -F'|' '
+            BEGIN {
+              print "### 🐛 Bug Fixes"
+              fixes = 0
+            }
+            /^fix[\(:]/  { 
+              fixes++
+              sub(/^fix[\(:][^)]*[\)]?: */, "", $1)
+              printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
+              next
+            }
+            END {
+              if (fixes == 0) print "_No bug fixes in this release_\n"
+            }
+            ' >> changelog.md
+            
+            echo "" >> changelog.md
+            
+            git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
+            awk -F'|' '
+            BEGIN {
+              print "### 📚 Documentation"
+              docs = 0
+            }
+            /^docs[\(:]/  { 
+              docs++
+              sub(/^docs[\(:][^)]*[\)]?: */, "", $1)
+              printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
+              next
+            }
+            END {
+              if (docs == 0) print "_No documentation updates in this release_\n"
+            }
+            ' >> changelog.md
+            
+            echo "" >> changelog.md
+            
+            git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
+            awk -F'|' '
+            BEGIN {
+              print "### 🔧 Maintenance"
+              chores = 0
+            }
+            /^(chore|refactor|perf|test)[\(:]/  { 
+              chores++
+              sub(/^[a-z]+[\(:][^)]*[\)]?: */, "", $1)
+              printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
+              next
+            }
+            END {
+              if (chores == 0) print "_No maintenance updates in this release_\n"
+            }
+            ' >> changelog.md
+            
+            # Count total commits
+            COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..HEAD -- translator/)
+          fi
           
-          echo "" >> changelog.md
-          
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
-          awk -F'|' '
-          BEGIN {
-            print "### 🐛 Bug Fixes"
-            fixes = 0
-          }
-          /^fix[\(:]/  { 
-            fixes++
-            sub(/^fix[\(:][^)]*[\)]?: */, "", $1)
-            printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
-            next
-          }
-          END {
-            if (fixes == 0) print "_No bug fixes in this release_\n"
-          }
-          ' >> changelog.md
-          
-          echo "" >> changelog.md
-          
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
-          awk -F'|' '
-          BEGIN {
-            print "### 📚 Documentation"
-            docs = 0
-          }
-          /^docs[\(:]/  { 
-            docs++
-            sub(/^docs[\(:][^)]*[\)]?: */, "", $1)
-            printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
-            next
-          }
-          END {
-            if (docs == 0) print "_No documentation updates in this release_\n"
-          }
-          ' >> changelog.md
-          
-          echo "" >> changelog.md
-          
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s|%an|%h" --no-merges -- translator/ | \
-          awk -F'|' '
-          BEGIN {
-            print "### 🔧 Maintenance"
-            chores = 0
-          }
-          /^(chore|refactor|perf|test)[\(:]/  { 
-            chores++
-            sub(/^[a-z]+[\(:][^)]*[\)]?: */, "", $1)
-            printf "- %s ([`%s`](https://github.com/${{ github.repository }}/commit/%s)) by @%s\n", $1, $3, $3, $2
-            next
-          }
-          END {
-            if (chores == 0) print "_No maintenance updates in this release_\n"
-          }
-          ' >> changelog.md
-          
-          # Count total commits
-          COMMIT_COUNT=$(git rev-list --count ${PREVIOUS_TAG}..HEAD -- translator/)
           echo "commit_count=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
-          
           echo "changelog_file=changelog.md" >> $GITHUB_OUTPUT
           
-          echo "Generated changelog with ${COMMIT_COUNT} commits"
+          echo "Generated changelog"
+          cat changelog.md
           
       - name: Generate Release Notes
         id: release_notes
